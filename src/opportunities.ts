@@ -115,6 +115,8 @@ export class Opportunities {
   ) {
     store.db.exec(`
       CREATE TABLE IF NOT EXISTS opportunities(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),data TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'saved',created_at TEXT NOT NULL,UNIQUE(user_id,data));
+      CREATE TABLE IF NOT EXISTS interest_shares(user_id TEXT NOT NULL REFERENCES users(id),opportunity_id TEXT NOT NULL,url_key TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(user_id,opportunity_id));
+      CREATE INDEX IF NOT EXISTS interest_shares_url ON interest_shares(url_key);
       CREATE TABLE IF NOT EXISTS opportunity_advice(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),opportunity_id TEXT NOT NULL REFERENCES opportunities(id),input_hash TEXT NOT NULL,state TEXT NOT NULL,result TEXT,error TEXT NOT NULL DEFAULT '',input_tokens INTEGER NOT NULL DEFAULT 0,output_tokens INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS advice_owner ON opportunity_advice(user_id,opportunity_id,created_at);
       CREATE TABLE IF NOT EXISTS event_suggestions(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),run_id TEXT NOT NULL,url TEXT NOT NULL,data TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'new',opportunity_id TEXT,created_at TEXT NOT NULL,UNIQUE(user_id,url));
@@ -158,6 +160,34 @@ export class Opportunities {
       .query('INSERT INTO opportunities(id,user_id,data,created_at) VALUES(?,?,?,?)')
       .run(id, userId, JSON.stringify(data), new Date().toISOString());
     return id;
+  }
+  /** Opt-in signal that the user is considering this event; only shared signals are visible to others. */
+  shareInterest(userId: string, id: string, on: boolean) {
+    const o = this.get(userId, id);
+    if (on)
+      this.store.db
+        .query('INSERT OR IGNORE INTO interest_shares VALUES(?,?,?,?)')
+        .run(userId, id, urlKey(o.url), new Date().toISOString());
+    else
+      this.store.db
+        .query('DELETE FROM interest_shares WHERE user_id=? AND opportunity_id=?')
+        .run(userId, id);
+  }
+  sharesInterest(userId: string, id: string) {
+    return !!this.store.db
+      .query('SELECT 1 FROM interest_shares WHERE user_id=? AND opportunity_id=?')
+      .get(userId, id);
+  }
+  /** Other users who chose to show that they are considering the same event. */
+  interestedPeers(userId: string, id: string) {
+    const o = this.get(userId, id);
+    return (
+      this.store.db
+        .query(
+          'SELECT DISTINCT user_id FROM interest_shares WHERE url_key=? AND user_id<>? ORDER BY created_at',
+        )
+        .all(urlKey(o.url), userId) as { user_id: string }[]
+    ).map((r) => r.user_id);
   }
   setState(userId: string, id: string, state: Opportunity['state']) {
     this.get(userId, id);
@@ -364,5 +394,15 @@ export class Opportunities {
         .run('準備案を作成できませんでした。機会の情報を確認して再試行してください。', job);
     }
     return job;
+  }
+}
+
+/** Same event regardless of scheme, www, trailing slash, query or hash. */
+export function urlKey(url: string) {
+  try {
+    const u = new URL(url);
+    return `${u.hostname.replace(/^www\./, '').toLowerCase()}${u.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return url;
   }
 }

@@ -1,8 +1,9 @@
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { createApp } from './app';
 import { Store } from './store';
 import { Discovery } from './discovery';
 import { Opportunities } from './opportunities';
+import { Previews } from './preview';
 import { UiEditor, prettier } from './ui-editor';
 
 const host = process.env.HOST ?? '127.0.0.1';
@@ -14,9 +15,12 @@ const claude = {
   model: process.env.ANTHROPIC_MODEL,
   rustxng: process.env.RUSTXNG_URL,
 };
+const assetDirectory = resolve(process.env.ASSET_DIRECTORY ?? '.data/assets');
+const previews = new Previews(store, { directory: join(assetDirectory, 'event-previews') });
 const app = createApp(store, {
   origin,
-  assetDirectory: resolve(process.env.ASSET_DIRECTORY ?? '.data/assets'),
+  assetDirectory,
+  previews,
   staticDirectory: resolve('public'),
   skillPath: resolve('skills/kosen-portfolio/SKILL.md'),
   claude,
@@ -26,7 +30,12 @@ const app = createApp(store, {
       : undefined,
 });
 // Event discovery: at start and hourly, once a day per recently active person.
-const stopDiscovery = new Discovery(store, new Opportunities(store, claude), claude).start();
+const stopDiscovery = new Discovery(
+  store,
+  new Opportunities(store, claude),
+  claude,
+  previews,
+).start();
 const server = Bun.serve({ hostname: host, port, fetch: app.fetch });
 console.log(`Kosen Launch: ${origin}`);
 if (process.env.UI_EDITOR === '1') console.log('UI editor: enabled on loopback only');

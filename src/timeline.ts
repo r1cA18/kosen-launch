@@ -491,6 +491,20 @@ export class TimelineStore {
         work: this.published(j.work_id, j.applicant_id),
       }));
   }
+  /** Join requests waiting for this user's answer, newest first, with the recruit title. */
+  pendingJoins(ownerId: string) {
+    const rows = this.store.db
+      .query(
+        "SELECT DISTINCT post_id FROM timeline_joins WHERE owner_id=? AND state='pending' ORDER BY created_at DESC LIMIT 10",
+      )
+      .all(ownerId) as { post_id: string }[];
+    return rows.flatMap(({ post_id }) => {
+      const title = this.post(post_id, ownerId).data.title ?? '';
+      return this.joins(post_id, ownerId)
+        .filter((j) => j.state === 'pending' && j.owner_id === ownerId)
+        .map((j) => ({ ...j, post_title: title }));
+    });
+  }
   private joinOf(userId: string, id: string) {
     const row = this.store.db.query('SELECT post_id FROM timeline_joins WHERE id=?').get(id) as {
       post_id: string;

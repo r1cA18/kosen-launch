@@ -77,7 +77,7 @@ export type TimelineView = {
 };
 const query = (v: Partial<TimelineView>) => {
   const q = new URLSearchParams();
-  if (v.filter === 'recruit') q.set('filter', 'recruit');
+  if (v.filter === 'all') q.set('filter', 'all');
   if (v.role) q.set('role', v.role);
   if (v.compose === 'recruit') q.set('compose', 'recruit');
   const s = q.toString();
@@ -523,15 +523,21 @@ export function Timeline({
     published = works.filter((w) => w.published_revision);
   return (
     <section class="x-feed" aria-label="Timeline">
+      <div class="feed-head">
+        <h2>仲間募集</h2>
+        <a class="btn btn-sm btn-outline" href="/home?compose=recruit#compose">
+          募集を作成
+        </a>
+      </div>
       <nav class="x-tabs" aria-label="絞り込み">
-        <a href="/home" aria-current={view.filter === 'all' && !view.role ? 'page' : undefined}>
-          すべて
+        <a href="/home" aria-current={view.filter === 'recruit' && !view.role ? 'page' : undefined}>
+          仲間募集
         </a>
         <a
-          href="/home?filter=recruit"
-          aria-current={view.filter === 'recruit' && !view.role ? 'page' : undefined}
+          href="/home?filter=all"
+          aria-current={view.filter === 'all' && !view.role ? 'page' : undefined}
         >
-          仲間募集
+          進捗も表示
         </a>
         {roles.map((r) => (
           <a
@@ -542,12 +548,19 @@ export function Timeline({
           </a>
         ))}
       </nav>
-      <Composer
-        user={user}
-        avatar={timeline.store.avatarOf(user.id)}
-        view={view}
-        published={published}
-      />
+      <details
+        class="composer-toggle"
+        id="compose"
+        open={view.compose === 'recruit' || !!view.prefill?.title}
+      >
+        <summary>{view.compose === 'recruit' ? '仲間募集を作成' : '進捗や募集を投稿'}</summary>
+        <Composer
+          user={user}
+          avatar={timeline.store.avatarOf(user.id)}
+          view={view}
+          published={published}
+        />
+      </details>
       {!!unread && (
         <a class="x-unread" href="/connections?tab=notifications">
           <Icon name="bell" />

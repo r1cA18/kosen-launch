@@ -278,42 +278,10 @@ function Composer({
         </div>
       </form>
     );
-  const works = timeline.store
-    .published(person.handle)
-    .filter((w) => w.share_to_feed && !timeline.social.blocked(user.id, person.id));
-  if (!works.length)
-    return (
-      <p class="x-dm-composer x-dm-hint">
-        {person.display_name}
-        さんの共有作品がないため、ここからは送信できません。相手からの質問に返信できます。
-      </p>
-    );
   return (
-    <form class="x-dm-composer" method="post" action="/social/questions">
-      <input type="hidden" name="back" value={back} />
-      <label class="x-dm-hint">
-        作品への質問として送信します。質問と返信は作品ページで公開されます。
-        <select class="select select-sm" name="work_id" aria-label="質問する作品">
-          {works.map((w) => (
-            <option value={w.work_id}>{w.data.title}</option>
-          ))}
-        </select>
-      </label>
-      <div class="x-dm-input">
-        <textarea
-          class="x-compose-text"
-          name="body"
-          rows={1}
-          maxLength={1000}
-          required
-          aria-label="メッセージ"
-          placeholder="メッセージを入力"
-        />
-        <button class="x-send" aria-label="送信">
-          <Icon name="send" />
-        </button>
-      </div>
-    </form>
+    <p class="x-dm-composer x-dm-hint">
+      誘いと参加希望への返事は上のカードから行えます。新しく声をかけるときは、イベントの詳細か仲間募集から送ってください。
+    </p>
   );
 }
 function ConversationList({
@@ -438,12 +406,16 @@ export function ConnectionsPage({
   notice?: string;
 }) {
   const list = timeline.conversations(user.id),
-    unread = social.notices(user.id).filter((n) => !n.read).length,
+    chosen = !!person;
+  person ??= list[0]?.person;
+  const unread = social.notices(user.id).filter((n) => !n.read).length,
     blocks = social.blocks(user.id),
     thread = person ? timeline.thread(user.id, person.id) : [];
   return (
-    <Layout title="Messages" user={user} active="connections">
-      <PageHeading title="Messages" />
+    <Layout title="Inbox" user={user} active="connections">
+      <header class="compact-heading">
+        <h1>Inbox</h1>
+      </header>
       {notice && (
         <p role="status" class="alert">
           {notice}
@@ -451,7 +423,7 @@ export function ConnectionsPage({
       )}
       <nav class="x-tabs x-page-tabs" aria-label="表示の切り替え">
         <a href="/connections" aria-current={tab === 'messages' ? 'page' : undefined}>
-          メッセージ
+          誘いと参加希望
         </a>
         <a
           href="/connections?tab=notifications"
@@ -463,7 +435,7 @@ export function ConnectionsPage({
       {tab === 'notifications' ? (
         <Notifications user={user} social={social} timeline={timeline} />
       ) : (
-        <div class={`x-dm ${person ? 'is-open' : ''}`}>
+        <div class={`x-dm ${chosen ? 'is-open' : ''}`}>
           <aside class="x-dm-list x-list" aria-label="会話">
             <ConversationList list={list} selected={person?.id} user={user} />
           </aside>
@@ -514,8 +486,8 @@ export function ConnectionsPage({
               </>
             ) : (
               <div class="x-dm-placeholder">
-                <h2>会話を選んでください</h2>
-                <p>質問と返信、誘い、参加希望を相手ごとに表示します。</p>
+                <h2>まだ届いていません</h2>
+                <p>仲間募集への参加希望、活動への誘い、作品への質問がここに届きます。</p>
               </div>
             )}
           </section>

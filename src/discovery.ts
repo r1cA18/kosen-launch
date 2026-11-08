@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { Store } from './store';
 import { SocialStore } from './social';
+import type { Previews } from './preview';
 import {
   Opportunities,
   suggestionFormats,
@@ -114,6 +115,7 @@ export class Discovery {
     public store: Store,
     public opportunities: Opportunities,
     public options: DiscoveryOptions = {},
+    public previews?: Previews,
   ) {
     new SocialStore(store); // notices share timeline_notices and its unread count
     store.db.exec(`
@@ -286,6 +288,8 @@ export class Discovery {
             );
         this.finish(id, 'completed', usage, '', candidates.length, added);
       })();
+      // Previews load in the background so the run is not delayed.
+      this.previews?.ensure(items.map((i) => i.url));
     } catch (error) {
       const code = error instanceof Error ? error.message : 'unknown';
       this.finish(id, 'failed', usage, `探索に失敗しました（${cut(code, 60)}）。`, 0, 0);

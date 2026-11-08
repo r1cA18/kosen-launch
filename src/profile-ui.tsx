@@ -44,10 +44,6 @@ export function ProfilePage({
               <a class="btn btn-sm x-btn" href="/settings">
                 プロフィールを編集
               </a>
-            ) : viewer ? (
-              <a class="btn btn-sm x-btn" href={`/connections?with=${person.handle}`}>
-                メッセージ
-              </a>
             ) : null}
           </div>
         </header>
