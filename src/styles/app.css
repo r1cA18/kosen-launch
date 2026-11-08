@@ -1310,3 +1310,173 @@
     }
   }
 }
+
+/* console */
+@layer utilities {
+  .console-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+  .console-bar .back-link {
+    margin-bottom: 12px;
+  }
+  .console-bar h1 {
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 800;
+    letter-spacing: -0.045em;
+  }
+  .console-dirty {
+    margin-left: 12px;
+    color: #b45309;
+    font-weight: 600;
+  }
+  .console-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 28px;
+    align-items: start;
+  }
+  .console-canvas {
+    min-width: 0;
+  }
+  .console-paper {
+    width: 100%;
+    margin: 0;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--corner);
+    padding: clamp(24px, 4vw, 56px);
+    background-image: radial-gradient(#d9deec 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+  .console-paper .work-detail {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .console-editable {
+    border-radius: 8px;
+    outline: 1px dashed transparent;
+    outline-offset: 4px;
+    transition:
+      outline-color 200ms ease,
+      background-color 200ms ease;
+    cursor: text;
+    min-height: 1.6em;
+  }
+  .console-editable:hover {
+    outline-color: #94a3b8;
+  }
+  .console-editable:focus {
+    outline: 2px solid #0f172a;
+    background: rgb(240 242 248 / 0.8);
+  }
+  .console-editable.is-empty::before,
+  .console-editable:empty::before {
+    content: attr(data-placeholder);
+    color: #94a3b8;
+    pointer-events: none;
+  }
+  .console-list {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+  .console-list .quiet {
+    font-size: 11px;
+  }
+  .console-panel {
+    display: grid;
+    gap: 16px;
+    position: sticky;
+    top: 24px;
+  }
+  .console-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    padding: 20px;
+    display: grid;
+    gap: 12px;
+  }
+  .console-card h2 {
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .console-card-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .console-issues {
+    display: grid;
+    gap: 14px;
+    max-height: 52vh;
+    overflow-y: auto;
+  }
+  .console-issues li {
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .console-issues li:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+  .console-issue-field {
+    font-size: 11px;
+    color: #64748b;
+  }
+  .console-diff {
+    display: grid;
+    gap: 4px;
+    font-size: 12px;
+    word-break: break-all;
+  }
+  .console-diff del {
+    color: #b91c1c;
+    background: #fef2f2;
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+  .console-diff q {
+    color: #0f172a;
+    background: #f0f2f8;
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+  .console-diff ins {
+    color: #166534;
+    background: #f0fdf4;
+    border-radius: 4px;
+    padding: 2px 6px;
+    text-decoration: none;
+  }
+  .bulk-search {
+    margin-bottom: 24px;
+  }
+  .bulk-results {
+    display: grid;
+    gap: 16px;
+  }
+  .bulk-results > .btn {
+    justify-self: start;
+  }
+  .bulk-work {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  @media (max-width: 1000px) {
+    .console-layout {
+      grid-template-columns: 1fr;
+    }
+    .console-panel {
+      position: static;
+    }
+  }
+}

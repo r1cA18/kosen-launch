@@ -385,9 +385,16 @@ export function WorksPage({ user, works }: { user: User; works: Work[] }) {
         title="自分の作品"
         description="小さな試作も、授業での工夫も。あなたの経験として残せます。"
         action={
-          <a class="btn btn-primary" href="/settings/agents">
-            エージェントで追加
-          </a>
+          <div class="actions">
+            {works.length > 0 && (
+              <a class="btn btn-outline" href="/works/text">
+                表記をまとめて直す
+              </a>
+            )}
+            <a class="btn btn-primary" href="/settings/agents">
+              エージェントで追加
+            </a>
+          </div>
         }
       />
       {works.length ? (
@@ -491,9 +498,14 @@ export function WorkEditor({
         title="作品を整える"
         description={`編集版 ${work.revision} / ${work.published_revision ? '公開版 ' + work.published_revision : 'まだ公開されていません'}`}
         action={
-          <a class="btn btn-primary" href={`/works/${work.id}/review`}>
-            公開前に確認する
-          </a>
+          <div class="actions">
+            <a class="btn btn-outline" href={`/works/${work.id}/console`}>
+              見た目のまま編集
+            </a>
+            <a class="btn btn-primary" href={`/works/${work.id}/review`}>
+              公開前に確認する
+            </a>
+          </div>
         }
       />
       {notice && (

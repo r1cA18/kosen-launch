@@ -29,6 +29,8 @@ import {
   PublicWorkPage,
   ErrorPage,
 } from './ui';
+import { ConsolePage, BulkTextPage } from './console-ui';
+import { applyAllFixes, applyFix, isEditableField, replaceAll } from './console';
 
 type Env = { Variables: { identity: Identity | null } };
 type Options = {
@@ -146,6 +148,7 @@ export function createApp(store: Store, options: Options) {
     ['style.css', 'text/css'],
     ['fonts.css', 'text/css'],
     ['app.js', 'text/javascript'],
+    ['console.js', 'text/javascript'],
     ['favicon.svg', 'image/svg+xml'],
   ])
     app.get('/' + route, async (c) => {
@@ -202,6 +205,84 @@ export function createApp(store: Store, options: Options) {
     const { user } = requireUser(c, true);
     return c.html(<WorksPage user={user} works={store.works(user.id)} />);
   });
+  app.get('/works/text', (c) => {
+    const { user } = requireUser(c, true);
+    const updated = c.req.query('updated');
+    return c.html(
+      <BulkTextPage
+        user={user}
+        works={store.works(user.id)}
+        find={(c.req.query('find') ?? '').slice(0, 100)}
+        replacement={(c.req.query('replace') ?? '').slice(0, 100)}
+        result={
+          updated === undefined
+            ? undefined
+            : { updated: Number(updated) || 0, conflicts: Number(c.req.query('conflicts')) || 0 }
+        }
+      />,
+    );
+  });
+  app.post('/works/text', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody({ all: true });
+    const find = z.string().min(1).max(100).parse(b.find),
+      replacement = z
+        .string()
+        .max(100)
+        .parse(b.replace ?? '');
+    const ids = ([] as unknown[]).concat(b.work ?? []).map(String);
+    let updated = 0,
+      conflicts = 0;
+    for (const id of ids) {
+      const work = store.work(user.id, id);
+      const base = z.coerce.number().int().positive().parse(b[`revision_${id}`]);
+      const data = workSchema.parse(replaceAll(work.data, find, replacement));
+      if (JSON.stringify(data) === JSON.stringify(work.data)) continue;
+      try {
+        store.updateWork(user.id, id, base, data);
+        updated++;
+      } catch (error) {
+        if (error instanceof DomainError && error.status === 409) conflicts++;
+        else throw error;
+      }
+    }
+    return c.redirect(`/works/text?updated=${updated}&conflicts=${conflicts}`, 303);
+  });
+  app.get('/works/:id/console', (c) => {
+    const { user } = requireUser(c, true);
+    return c.html(
+      <ConsolePage
+        user={user}
+        work={store.work(user.id, c.req.param('id'))}
+        store={store}
+        notice={
+          c.req.query('saved')
+            ? '保存しました。'
+            : c.req.query('fixed')
+              ? '表記を修正しました。'
+              : undefined
+        }
+      />,
+    );
+  });
+  app.post('/works/:id/console/fix', async (c) => {
+    const { user } = requireUser(c, true),
+      id = c.req.param('id'),
+      work = store.work(user.id, id),
+      b = await c.req.parseBody();
+    const base = z.coerce.number().int().positive().parse(b.revision);
+    const field = String(b.field ?? ''),
+      rule = String(b.rule ?? '');
+    if (rule !== 'all' && !isEditableField(field))
+      throw new DomainError(422, '修正する項目を選んでください。');
+    const data = workSchema.parse(
+      rule === 'all'
+        ? applyAllFixes(work.data)
+        : applyFix(work.data, field as Parameters<typeof applyFix>[1], rule),
+    );
+    store.updateWork(user.id, id, base, data);
+    return c.redirect(`/works/${id}/console?fixed=1`, 303);
+  });
   app.get('/works/:id', (c) => {
     const { user } = requireUser(c, true);
     const work = store.work(user.id, c.req.param('id'));
@@ -245,7 +326,10 @@ export function createApp(store: Store, options: Options) {
       tags: list(b.tags),
     });
     store.updateWork(user.id, id, z.coerce.number().int().positive().parse(b.revision), data);
-    return c.redirect(`/works/${id}?saved=1`, 303);
+    return c.redirect(
+      b.return === 'console' ? `/works/${id}/console?saved=1` : `/works/${id}?saved=1`,
+      303,
+    );
   });
   app.post('/works/:id/image', async (c) => {
     const { user } = requireUser(c, true),
