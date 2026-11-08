@@ -16,6 +16,7 @@ import { Opportunities, opportunitySchema, planState, type ClaudeOptions } from 
 import { Conversation, ConnectionsPage } from './social-ui';
 import { EventsPage, EventsRail, OpportunityPage, type EventsTab } from './events-ui';
 import { Discovery, type DiscoveryOptions } from './discovery';
+import type { Previews } from './preview';
 import {
   registrationSchema,
   createWorkSchema,
@@ -53,13 +54,15 @@ type Options = {
   skillPath: string;
   claude?: ClaudeOptions & Pick<DiscoveryOptions, 'rustxng'>;
   uiEditor?: UiEditor;
+  /** Site previews for events. Without it previews are neither fetched nor shown. */
+  previews?: Previews;
 };
 export function createApp(store: Store, options: Options) {
   const app = new Hono<Env>();
   const social = new SocialStore(store);
   const timeline = new TimelineStore(store, social);
   const opportunities = new Opportunities(store, options.claude);
-  const discovery = new Discovery(store, opportunities, options.claude);
+  const discovery = new Discovery(store, opportunities, options.claude, options.previews);
   const origin = new URL(options.origin).origin;
   const attempts = new Map<string, { count: number; until: number }>();
   app.use(
@@ -265,13 +268,16 @@ export function createApp(store: Store, options: Options) {
       works.map((w) => [w.id, store.proposals(user.id, w.id).length]),
     );
     discovery.ensure(user.id);
+    const top = opportunities.forYou(user.id, 1)[0];
+    if (top) options.previews?.ensure([top.url]);
     return c.html(
       <HomePage
         user={user}
         setupProfile={!profile.bio && !profile.interests.length}
         next={
           <NextSection
-            event={opportunities.forYou(user.id, 1)[0]}
+            event={top}
+            preview={top ? (options.previews?.get(top.url) ?? null) : null}
             joins={timeline.pendingJoins(user.id)}
             invitations={social
               .invitations(user.id)
@@ -829,11 +835,16 @@ export function createApp(store: Store, options: Options) {
     const { user } = requireUser(c, true);
     const tab = c.req.query('tab');
     discovery.ensure(user.id);
+    options.previews?.ensure([
+      ...opportunities.suggestions(user.id).map((s) => s.url),
+      ...opportunities.list(user.id).map((o) => o.url),
+    ]);
     return c.html(
       <EventsPage
         user={user}
         tab={(['saved', 'plans'].includes(tab ?? '') ? tab : 'foryou') as EventsTab}
         opportunities={opportunities}
+        previews={options.previews}
         status={{
           enabled: discovery.enabled(),
           running: discovery.running(user.id),
@@ -861,12 +872,14 @@ export function createApp(store: Store, options: Options) {
   });
   app.get('/opportunities/:id', (c) => {
     const { user } = requireUser(c, true);
+    options.previews?.ensure([opportunities.get(user.id, c.req.param('id')).url]);
     return c.html(
       <OpportunityPage
         adviceId={c.req.query('advice')}
         user={user}
         id={c.req.param('id')}
         opportunities={opportunities}
+        previews={options.previews}
         works={store.works(user.id)}
       />,
     );
@@ -891,6 +904,17 @@ export function createApp(store: Store, options: Options) {
     const ids = Array.isArray(b.work_ids) ? b.work_ids : [b.work_ids];
     const advice = await opportunities.recommend(user.id, id, z.array(z.string()).parse(ids));
     return c.redirect(`/opportunities/${id}?advice=${advice}`, 303);
+  });
+  app.get('/event-previews/:id', async (c) => {
+    const { user } = requireUser(c, true);
+    const image = options.previews?.imageFor(user.id, c.req.param('id'));
+    if (!image) throw new DomainError(404, '画像が見つかりません。');
+    const file = Bun.file(image.path);
+    if (!(await file.exists())) throw new DomainError(404, '画像が見つかりません。');
+    c.header('Content-Type', image.mime);
+    c.header('Cache-Control', 'private, max-age=86400');
+    c.header('Content-Security-Policy', "default-src 'none'; sandbox");
+    return c.body(await file.arrayBuffer());
   });
   app.get('/assets/:id', async (c) => {
     const asset = store.asset(c.req.param('id'), c.get('identity')?.user.id);

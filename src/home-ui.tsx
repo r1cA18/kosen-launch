@@ -2,6 +2,7 @@ import type { Work } from './store';
 import type { Invitation } from './social';
 import type { Join } from './timeline';
 import type { Suggestion } from './opportunities';
+import type { Preview } from './preview';
 import { Avatar } from './ui';
 
 const short = (date: string) =>
@@ -10,12 +11,14 @@ const short = (date: string) =>
 /** The top of Home: the one event worth acting on, answers people are waiting for, and drafts. */
 export function NextSection({
   event,
+  preview,
   joins,
   invitations,
   drafts,
   proposals,
 }: {
   event?: Suggestion;
+  preview?: Preview | null;
   joins: (Join & { post_title: string })[];
   invitations: Invitation[];
   drafts: Work[];
@@ -28,6 +31,11 @@ export function NextSection({
         <p class="next-label">あなた向けのイベント</p>
         {event ? (
           <>
+            {preview?.image_id && (
+              <a class="next-thumb" href="/opportunities">
+                <img src={`/event-previews/${preview.image_id}`} alt="" loading="lazy" />
+              </a>
+            )}
             <h2>
               <a href="/opportunities">{event.title}</a>
             </h2>
