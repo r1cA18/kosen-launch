@@ -1,0 +1,9 @@
+# ~/.cloudflared/config.yml on the host. Replace <TUNNEL_ID> and <USER> after `cloudflared tunnel create`.
+tunnel: <TUNNEL_ID>
+credentials-file: /home/<USER>/.cloudflared/<TUNNEL_ID>.json
+ingress:
+  - hostname: kosen-launch.r1ca18.dev
+    service: http://127.0.0.1:4180
+    originRequest:
+      httpHostHeader: kosen-launch.r1ca18.dev
+  - service: http_status:404

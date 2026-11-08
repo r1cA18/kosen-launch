@@ -1,0 +1,15 @@
+[Unit]
+Description=Kosen Launch web app
+After=network-online.target
+
+[Service]
+WorkingDirectory=@ROOT@
+EnvironmentFile=@CONFIG@/env
+ExecStart=/usr/bin/env bun dist/server.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
