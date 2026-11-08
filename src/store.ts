@@ -121,6 +121,32 @@ export class Store {
         new Date().toISOString(),
       );
   }
+  updateDisplayName(userId: string, name: string) {
+    this.user(userId);
+    this.db.query('UPDATE users SET display_name=? WHERE id=?').run(name, userId);
+  }
+  /** Public identity for a profile page; never includes email or school. */
+  publicUser(handle: string) {
+    return this.db.query('SELECT id,display_name,handle FROM users WHERE handle=?').get(handle) as {
+      id: string;
+      display_name: string;
+      handle: string;
+    } | null;
+  }
+  avatarOf(userId: string) {
+    const row = this.db
+      .query('SELECT avatar_asset_id FROM profiles WHERE user_id=?')
+      .get(userId) as { avatar_asset_id: string | null } | null;
+    return row?.avatar_asset_id ?? null;
+  }
+  avatarByHandle(handle: string) {
+    const row = this.db
+      .query(
+        'SELECT p.avatar_asset_id FROM profiles p JOIN users u ON u.id=p.user_id WHERE u.handle=?',
+      )
+      .get(handle) as { avatar_asset_id: string | null } | null;
+    return row?.avatar_asset_id ?? null;
+  }
   async register(input: (User & { password: string }) | (Omit<User, 'id'> & { password: string })) {
     const hash = await Bun.password.hash(input.password, { algorithm: 'argon2id' });
     const id = randomUUID();

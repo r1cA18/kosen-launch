@@ -30,6 +30,7 @@ export type Question = {
   created_at: string;
   display_name: string;
   handle: string;
+  avatar?: string | null;
 };
 export type Invitation = InvitationInput & {
   id: string;
@@ -46,6 +47,7 @@ export type Invitation = InvitationInput & {
 };
 export type Notice = {
   id: string;
+  actor_id: string;
   message: string;
   href: string;
   read: number;
@@ -126,10 +128,10 @@ export class SocialStore {
       .query(
         'SELECT n.* FROM social_notices n JOIN publications p ON p.work_id=n.work_id WHERE n.user_id=? AND p.share_to_feed=1 ORDER BY n.created_at DESC LIMIT 100',
       )
-      .all(userId) as (Notice & { actor_id: string })[];
+      .all(userId) as Notice[];
     const posts = this.store.db
       .query('SELECT * FROM timeline_notices WHERE user_id=? ORDER BY created_at DESC LIMIT 100')
-      .all(userId) as (Notice & { actor_id: string })[];
+      .all(userId) as Notice[];
     return [...works, ...posts]
       .filter((n) => !this.blocked(userId, n.actor_id))
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -139,12 +141,19 @@ export class SocialStore {
     this.store.db.query('UPDATE social_notices SET read=1 WHERE user_id=?').run(userId);
     this.store.db.query('UPDATE timeline_notices SET read=1 WHERE user_id=?').run(userId);
   }
+  /** Mark notices caused by one person as read when their conversation is opened. */
+  readFrom(userId: string, actorId: string) {
+    for (const table of ['social_notices', 'timeline_notices'])
+      this.store.db
+        .query(`UPDATE ${table} SET read=1 WHERE user_id=? AND actor_id=?`)
+        .run(userId, actorId);
+  }
   questions(workId: string, viewer?: string): Question[] {
     this.shared(workId, viewer);
     return (
       this.store.db
         .query(
-          'SELECT q.*,u.display_name,u.handle FROM social_questions q JOIN users u ON u.id=q.author_id WHERE q.work_id=? ORDER BY q.created_at DESC,q.rowid DESC LIMIT 100',
+          'SELECT q.*,u.display_name,u.handle,pr.avatar_asset_id AS avatar FROM social_questions q JOIN users u ON u.id=q.author_id LEFT JOIN profiles pr ON pr.user_id=q.author_id WHERE q.work_id=? ORDER BY q.created_at DESC,q.rowid DESC LIMIT 100',
         )
         .all(workId) as Question[]
     )

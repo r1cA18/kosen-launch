@@ -382,45 +382,108 @@ export function WorkCard({
     </a>
   );
 }
+/** Work counts and the link to the newest draft; meant for the Home side rail. */
+export function WorkStatus({ works }: { works: Work[] }) {
+  const drafts = works.filter((w) => !w.published_revision).length;
+  return (
+    <section class="status-strip">
+      {works.length ? (
+        <p>
+          作品 <strong>{works.length}</strong> 件（下書き {drafts} 件・公開中{' '}
+          {works.length - drafts} 件）
+        </p>
+      ) : (
+        <p>
+          作品はまだありません。エージェントを接続すると、制作フォルダから下書きを作成できます。
+        </p>
+      )}
+      <a
+        class="ui-action ui-action-primary"
+        href={works.length ? `/works/${works[0].id}` : '/settings?tab=agent'}
+      >
+        {works.length ? '最新の下書きを開く' : 'エージェントを接続'}
+      </a>
+    </section>
+  );
+}
+/** Right rail on Home: what to review next. */
+export function DraftsRail({
+  works,
+  proposals,
+}: {
+  works: Work[];
+  proposals: Record<string, number>;
+}) {
+  const pending = works.filter(
+    (w) => (!w.published_revision && w.revision === 1) || proposals[w.id] > 0,
+  );
+  const live = works.filter((w) => w.published_revision).length;
+  return (
+    <section class="card rail-card" aria-label="確認待ちの下書き">
+      <div class="rail-head">
+        <h2>Drafts</h2>
+        <a href="/works?filter=agent">すべて見る</a>
+      </div>
+      <p class="quiet">
+        作品 {works.length} 件・公開中 {live} 件・確認待ち {pending.length} 件
+      </p>
+      {pending.length ? (
+        <ul>
+          {pending.slice(0, 3).map((w) => (
+            <li>
+              <a href={`/works/${w.id}`}>{w.data.title}</a>
+              <span class="quiet">
+                {proposals[w.id] > 0 ? `更新案 ${proposals[w.id]} 件` : 'エージェントの下書き'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <a class="btn btn-sm btn-outline" href="/settings?tab=agent">
+          エージェントで作品を追加
+        </a>
+      )}
+    </section>
+  );
+}
 export function HomePage({
   user,
-  works,
   children,
+  rail,
+  setupProfile = false,
 }: {
   user: User;
-  works: Work[];
   children: Child;
+  rail?: Child;
+  setupProfile?: boolean;
 }) {
-  const drafts = works.filter((w) => !w.published_revision).length;
   return (
     <Layout title="Home" user={user}>
       <PageHeading
         title="Home"
         action={
-          <a class="ui-action ui-action-plain" href="/settings/agents">
+          <a class="ui-action ui-action-plain" href="/settings?tab=agent">
             作品を追加
           </a>
         }
       />
-      <section class="status-strip">
-        {works.length ? (
-          <p>
-            作品 <strong>{works.length}</strong> 件（下書き {drafts} 件・公開中{' '}
-            {works.length - drafts} 件）
-          </p>
-        ) : (
-          <p>
-            作品はまだありません。エージェントを接続すると、制作フォルダから下書きを作成できます。
-          </p>
-        )}
-        <a
-          class="ui-action ui-action-primary"
-          href={works.length ? `/works/${works[0].id}` : '/settings/agents'}
-        >
-          {works.length ? '最新の下書きを開く' : 'エージェントを接続'}
-        </a>
-      </section>
-      {children}
+      <div class={rail ? 'x-home has-rail' : 'x-home'}>
+        <div class="x-main">
+          {setupProfile && (
+            <section class="card x-setup">
+              <div>
+                <h2>プロフィールを設定</h2>
+                <p>アイコンと自己紹介と関心を登録すると、投稿やメッセージに表示されます。</p>
+              </div>
+              <a class="btn btn-primary btn-sm" href="/settings">
+                設定する
+              </a>
+            </section>
+          )}
+          {children}
+        </div>
+        {rail && <aside class="x-rail">{rail}</aside>}
+      </div>
     </Layout>
   );
 }
@@ -911,13 +974,12 @@ export function ReviewPage({ user, work, store }: { user: User; work: Work; stor
     </Layout>
   );
 }
+/** Agent connection settings; rendered inside the Settings page Agent tab. */
 export function ConnectPage({
-  user,
   tokens,
   origin,
   issued,
 }: {
-  user: User;
   tokens: ReturnType<Store['tokens']>;
   origin: string;
   issued?: { token: string; expires: number };
@@ -936,11 +998,10 @@ export function ConnectPage({
     2,
   );
   return (
-    <Layout title="Agent" user={user} active="connect">
-      <PageHeading
-        title="Agent"
-        description="コーディングエージェントにSkillとMCPを設定し、制作フォルダから作品の下書きを作成します。"
-      />
+    <>
+      <p class="x-settings-lead">
+        コーディングエージェントにSkillとMCPを設定し、制作フォルダから作品の下書きを作成します。
+      </p>
       <div class="connect-layout">
         <section class="card setup-step">
           <span class="step-number">1</span>
@@ -1024,16 +1085,15 @@ export function ConnectPage({
           <p>接続はまだありません。</p>
         )}
       </section>
-    </Layout>
+    </>
   );
 }
+/** Public works grid with year and tag filters; used by the profile Works tab. */
 export function PublicPortfolio({
-  profile,
   works,
   year,
   tag,
 }: {
-  profile: { display_name: string; handle: string };
   works: Published[];
   year?: string;
   tag?: string;
@@ -1046,23 +1106,12 @@ export function PublicPortfolio({
     (w) => (!year || String(w.data.year) === year) && (!tag || w.data.tags.includes(tag)),
   );
   return (
-    <Layout title={profile.display_name} portfolio>
-      <div class="public-portfolio">
-        <p class="portfolio-eyebrow">Portfolio</p>
-        <header class="profile-heading">
-          <span class="profile-avatar large">{profile.display_name.slice(0, 1)}</span>
-          <div>
-            <p>@{profile.handle}</p>
-            <h1>{profile.display_name}</h1>
-          </div>
-        </header>
-        <div class="section-heading">
-          <div>
-            <h2>Works</h2>
-            <p class="quiet">
-              <span class="work-count">{selected.length}</span> 件
-            </p>
-          </div>
+    <section class="public-portfolio x-portfolio" aria-label="Works">
+      <div class="section-heading">
+        <p class="quiet">
+          <span class="work-count">{selected.length}</span> 件の作品
+        </p>
+        {!!works.length && (
           <form method="get" class="filters">
             <label>
               年
@@ -1088,27 +1137,27 @@ export function PublicPortfolio({
             </label>
             <button class="btn btn-outline">絞り込む</button>
           </form>
-        </div>
-        {selected.length ? (
-          <div class="work-grid">
-            {selected.map((w) => (
-              <WorkCard
-                data={w.data}
-                href={linkTo(w)}
-                meta={kindLabels[w.data.kind]}
-                image={w.data.asset_ids[0] ? `/assets/${w.data.asset_ids[0]}` : undefined}
-              />
-            ))}
-          </div>
-        ) : (
-          <div class="feed-empty">
-            <p>
-              {works.length ? '条件に合う作品がありません。' : '公開された作品はまだありません。'}
-            </p>
-          </div>
         )}
       </div>
-    </Layout>
+      {selected.length ? (
+        <div class="work-grid">
+          {selected.map((w) => (
+            <WorkCard
+              data={w.data}
+              href={linkTo(w)}
+              meta={kindLabels[w.data.kind]}
+              image={w.data.asset_ids[0] ? `/assets/${w.data.asset_ids[0]}` : undefined}
+            />
+          ))}
+        </div>
+      ) : (
+        <div class="feed-empty">
+          <p>
+            {works.length ? '条件に合う作品がありません。' : '公開された作品はまだありません。'}
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 export function PublicWorkPage({
