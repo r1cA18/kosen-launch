@@ -290,8 +290,10 @@ function drawGlass(time: number) {
         element.dataset.opticalPath = 'webgl';
       }
     }
-  } catch {
+  } catch (error) {
     failed = true;
+    // Kept on the root so a fallback to CSS frost can be diagnosed without a debugger.
+    root.dataset.glassFallback = error instanceof Error ? error.message.slice(0, 200) : 'unknown';
     renderer?.dispose();
     renderer = undefined;
     for (const { element } of surfaces.values()) element.dataset.opticalPath = 'frost';
