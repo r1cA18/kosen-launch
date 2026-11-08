@@ -93,11 +93,11 @@ export function Layout({
                 </div>
               </nav>
             </details>
-          ) : (
+          ) : portfolio ? (
             <a class="ui-action ui-action-plain" href={publicViewer ? '/home' : '/login'}>
               {publicViewer ? 'Home' : 'ログイン'}
             </a>
-          )}
+          ) : null}
         </header>
         <main id="main" class={user ? 'ui-page' : 'ui-public'}>
           {children}
@@ -360,11 +360,7 @@ export function WorksPage({ user, works }: { user: User; works: Work[] }) {
           ))}
         </div>
       ) : (
-        <Empty
-          title="作品はまだありません"
-          href="/settings/agents"
-          label="エージェントを接続"
-        >
+        <Empty title="作品はまだありません" href="/settings/agents" label="エージェントを接続">
           エージェントを接続すると、制作フォルダから作品の下書きを作成できます。
         </Empty>
       )}
@@ -812,7 +808,7 @@ export function PublicPortfolio({
           <div>
             <h2>Works</h2>
             <p class="quiet">
-              作品と取り組み <span class="work-count">{selected.length}</span>
+              <span class="work-count">{selected.length}</span> 件
             </p>
           </div>
           <form method="get" class="filters">
