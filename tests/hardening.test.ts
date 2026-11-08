@@ -56,3 +56,22 @@ test('HTTPSではHSTSとSecure Cookieを付け、招待コードなしの環境�
     (await http.request('http://127.0.0.1:4177/login')).headers.get('Strict-Transport-Security'),
   ).toBeNull();
 });
+
+test('登録の入力ミスは項目ごとの理由を示し、公開IDの大文字は小文字にして受け付ける', async () => {
+  const origin = 'https://kosen.example';
+  const app = make(origin);
+  const post = (fields: Record<string, string>) =>
+    app.request(`${origin}/register`, {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(fields),
+    });
+  const bad = await post({ ...account, handle: 'kosen_student' });
+  expect(bad.status).toBe(422);
+  expect(await bad.text()).toContain('公開IDは小文字の英字で始まり');
+  const short = await post({ ...account, password: 'short' });
+  expect(await short.text()).toContain('パスワードは10〜128文字');
+  const upper = await post({ ...account, handle: 'Kosen-Student' });
+  expect(upper.status).toBe(303);
+  expect(await (await app.request(`${origin}/u/kosen-student`)).text()).toContain('@kosen-student');
+});

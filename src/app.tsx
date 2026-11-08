@@ -63,6 +63,17 @@ type Options = {
   /** When set, new accounts need this invite code (public demo deployments). */
   registrationCode?: string;
 };
+const fieldHints: Record<string, string> = {
+  handle: '公開IDは小文字の英字で始まり、小文字・数字・ハイフンの3〜30文字で入力してください。',
+  password: 'パスワードは10〜128文字で入力してください。',
+  email: 'メールアドレスの形式を確認してください。',
+  display_name: '表示名を60文字以内で入力してください。',
+};
+/** Names the first invalid field when it is one people commonly get wrong. */
+function fieldMessage(error: z.ZodError) {
+  const field = String(error.issues[0]?.path[0] ?? '');
+  return fieldHints[field] ?? '入力内容を確認してください。必須項目と文字数を見直してください。';
+}
 export function createApp(store: Store, options: Options) {
   const app = new Hono<Env>();
   const social = new SocialStore(store);
@@ -200,7 +211,7 @@ export function createApp(store: Store, options: Options) {
       error instanceof DomainError
         ? error.message
         : error instanceof z.ZodError
-          ? '入力内容を確認してください。必須項目と文字数を見直してください。'
+          ? fieldMessage(error)
           : '処理を完了できませんでした。時間をおいてもう一度試してください。';
     if (status === 500)
       console.error('Request failed:', error instanceof Error ? error.name : 'unknown');

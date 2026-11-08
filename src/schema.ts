@@ -61,7 +61,11 @@ export const registrationSchema = z
       .transform((s) => s.toLowerCase()),
     password: z.string().min(10).max(128),
     display_name: text(60).min(1),
-    handle: z.string().regex(/^[a-z][a-z0-9-]{2,29}$/),
+    handle: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z][a-z0-9-]{2,29}$/),
     school: text(120).default(''),
     department: text(100).default(''),
     grade: text(30).default(''),
