@@ -74,6 +74,35 @@ export type Advice = {
   stale: boolean;
   created_at: string;
 };
+export const suggestionKinds = ['hackathon', 'contest', 'meetup', 'internship', 'other'] as const;
+export const suggestionFormats = ['online', 'offline', 'hybrid', 'unknown'] as const;
+export type SuggestionData = {
+  title: string;
+  url: string;
+  date: string;
+  deadline: string;
+  location: string;
+  format: (typeof suggestionFormats)[number];
+  kind: (typeof suggestionKinds)[number];
+  audience: string;
+  reason: string;
+  role: string;
+  work_ids: string[];
+  work_titles: string[];
+  confidence: 'high' | 'medium' | 'low';
+  source_domain: string;
+  /** Search backend that produced the URL: Claude web search or a RustXNG instance. */
+  found_via?: 'web_search' | 'rustxng';
+};
+export type Suggestion = SuggestionData & {
+  id: string;
+  run_id: string;
+  state: 'new' | 'saved' | 'dismissed';
+  opportunity_id: string | null;
+  created_at: string;
+};
+export const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+const rank = { high: 0, medium: 1, low: 2 };
 export type ClaudeOptions = {
   key?: string;
   model?: string;
@@ -88,6 +117,7 @@ export class Opportunities {
       CREATE TABLE IF NOT EXISTS opportunities(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),data TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'saved',created_at TEXT NOT NULL,UNIQUE(user_id,data));
       CREATE TABLE IF NOT EXISTS opportunity_advice(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),opportunity_id TEXT NOT NULL REFERENCES opportunities(id),input_hash TEXT NOT NULL,state TEXT NOT NULL,result TEXT,error TEXT NOT NULL DEFAULT '',input_tokens INTEGER NOT NULL DEFAULT 0,output_tokens INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS advice_owner ON opportunity_advice(user_id,opportunity_id,created_at);
+      CREATE TABLE IF NOT EXISTS event_suggestions(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),run_id TEXT NOT NULL,url TEXT NOT NULL,data TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'new',opportunity_id TEXT,created_at TEXT NOT NULL,UNIQUE(user_id,url));
     `);
     const columns = store.db.query('PRAGMA table_info(opportunity_advice)').all() as {
       name: string;
@@ -169,6 +199,63 @@ export class Opportunities {
       error: expired ? '処理が中断されました。準備案を再作成してください。' : row.error,
       result: row.result ? JSON.parse(row.result) : null,
     };
+  }
+  /** Discovered events for one state. New items whose dates have passed are hidden. */
+  suggestions(userId: string, state: Suggestion['state'] = 'new'): Suggestion[] {
+    const day = today();
+    return (
+      this.store.db
+        .query(
+          'SELECT id,run_id,data,state,opportunity_id,created_at FROM event_suggestions WHERE user_id=? AND state=? ORDER BY created_at DESC,rowid',
+        )
+        .all(userId, state) as (Omit<Suggestion, keyof SuggestionData> & { data: string })[]
+    )
+      .map(({ data, ...r }) => ({ ...(JSON.parse(data) as SuggestionData), ...r }))
+      .filter(
+        (s) =>
+          state !== 'new' ||
+          !((s.deadline && s.deadline < day) || (!s.deadline && s.date && s.date < day)),
+      );
+  }
+  /** Top new suggestions for the Home rail. */
+  forYou(userId: string, limit = 3) {
+    return this.suggestions(userId)
+      .sort((a, b) => rank[a.confidence] - rank[b.confidence])
+      .slice(0, limit);
+  }
+  private suggestion(userId: string, id: string) {
+    const s = [...this.suggestions(userId), ...this.suggestions(userId, 'saved')].find(
+      (s) => s.id === id,
+    );
+    if (!s)
+      throw new DomainError(404, 'イベントが見つかりません。Eventsの一覧を確認してください。');
+    return s;
+  }
+  /** Saving copies the suggestion into the owner's opportunities so the prep advice can use it. */
+  saveSuggestion(userId: string, id: string) {
+    const s = this.suggestion(userId, id);
+    if (s.opportunity_id) return s.opportunity_id;
+    const opportunity = this.add(userId, {
+      title: s.title,
+      url: s.url,
+      date: s.date,
+      deadline: s.deadline,
+      location: s.location,
+      conditions: s.audience
+        ? `対象：${s.audience}（AIの探索結果です。公式ページで確認してください。）`
+        : '',
+      existing_work: 'unknown',
+    });
+    this.store.db
+      .query("UPDATE event_suggestions SET state='saved',opportunity_id=? WHERE id=? AND user_id=?")
+      .run(opportunity, id, userId);
+    return opportunity;
+  }
+  dismissSuggestion(userId: string, id: string) {
+    this.suggestion(userId, id);
+    this.store.db
+      .query("UPDATE event_suggestions SET state='dismissed' WHERE id=? AND user_id=?")
+      .run(id, userId);
   }
   async recommend(userId: string, id: string, workIds: string[]) {
     const event = this.get(userId, id);

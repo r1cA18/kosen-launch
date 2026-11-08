@@ -11,7 +11,9 @@ import { SocialStore, invitationSchema } from './social';
 import { TimelineStore, parseRoles } from './timeline';
 import { Timeline, TimelinePostPage } from './timeline-ui';
 import { Opportunities, opportunitySchema, planState, type ClaudeOptions } from './opportunities';
-import { Conversation, ConnectionsPage, OpportunitiesPage, OpportunityPage } from './social-ui';
+import { Conversation, ConnectionsPage } from './social-ui';
+import { EventsPage, OpportunityPage, type EventsTab } from './events-ui';
+import { Discovery, type DiscoveryOptions } from './discovery';
 import {
   registrationSchema,
   createWorkSchema,
@@ -46,7 +48,7 @@ type Options = {
   assetDirectory: string;
   staticDirectory: string;
   skillPath: string;
-  claude?: ClaudeOptions;
+  claude?: ClaudeOptions & Pick<DiscoveryOptions, 'rustxng'>;
   uiEditor?: UiEditor;
 };
 export function createApp(store: Store, options: Options) {
@@ -54,6 +56,7 @@ export function createApp(store: Store, options: Options) {
   const social = new SocialStore(store);
   const timeline = new TimelineStore(store, social);
   const opportunities = new Opportunities(store, options.claude);
+  const discovery = new Discovery(store, opportunities, options.claude);
   const origin = new URL(options.origin).origin;
   const attempts = new Map<string, { count: number; until: number }>();
   app.use(
@@ -716,9 +719,32 @@ export function createApp(store: Store, options: Options) {
   });
   app.get('/opportunities', (c) => {
     const { user } = requireUser(c, true);
+    const tab = c.req.query('tab');
+    discovery.ensure(user.id);
     return c.html(
-      <OpportunitiesPage user={user} opportunities={opportunities} works={store.works(user.id)} />,
+      <EventsPage
+        user={user}
+        tab={(['saved', 'plans'].includes(tab ?? '') ? tab : 'foryou') as EventsTab}
+        opportunities={opportunities}
+        status={{
+          enabled: discovery.enabled(),
+          running: discovery.running(user.id),
+          last: discovery.last(user.id),
+        }}
+      />,
     );
+  });
+  app.post('/opportunities/suggestions/:id/save', (c) => {
+    const { user } = requireUser(c, true);
+    return c.redirect(
+      `/opportunities/${opportunities.saveSuggestion(user.id, c.req.param('id'))}`,
+      303,
+    );
+  });
+  app.post('/opportunities/suggestions/:id/dismiss', (c) => {
+    const { user } = requireUser(c, true);
+    opportunities.dismissSuggestion(user.id, c.req.param('id'));
+    return c.redirect('/opportunities', 303);
   });
   app.post('/opportunities', async (c) => {
     const { user } = requireUser(c, true),
