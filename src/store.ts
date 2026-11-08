@@ -56,9 +56,9 @@ export type Proposal = {
   created_at: string;
 };
 export type Asset = { id: string; owner_id: string; mime: string; path: string; alt: string };
-const digest = (s: string) => createHash('sha256').update(s).digest('hex');
+export const digest = (s: string) => createHash('sha256').update(s).digest('hex');
 const now = () => new Date().toISOString();
-const secret = () => randomBytes(32).toString('base64url');
+export const secret = () => randomBytes(32).toString('base64url');
 
 export class Store {
   db: Database;
@@ -75,6 +75,9 @@ export class Store {
       CREATE TABLE IF NOT EXISTS proposals(id TEXT PRIMARY KEY,work_id TEXT NOT NULL REFERENCES works(id),base_revision INTEGER NOT NULL,data TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'pending',created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id),mime TEXT NOT NULL,path TEXT NOT NULL,alt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS reactions(user_id TEXT NOT NULL REFERENCES users(id),work_id TEXT NOT NULL REFERENCES works(id),PRIMARY KEY(user_id,work_id));
+      CREATE TABLE IF NOT EXISTS oauth_clients(id TEXT PRIMARY KEY,name TEXT NOT NULL,redirect_uris TEXT NOT NULL,created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS oauth_codes(hash TEXT PRIMARY KEY,client_id TEXT NOT NULL REFERENCES oauth_clients(id),user_id TEXT NOT NULL REFERENCES users(id),redirect_uri TEXT NOT NULL,challenge TEXT NOT NULL,resource TEXT NOT NULL,expires INTEGER NOT NULL,used INTEGER NOT NULL DEFAULT 0,grant_id TEXT);
+      CREATE TABLE IF NOT EXISTS oauth_grants(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),client_id TEXT NOT NULL REFERENCES oauth_clients(id),label TEXT NOT NULL,access_hash TEXT UNIQUE NOT NULL,access_expires INTEGER NOT NULL,refresh_hash TEXT UNIQUE NOT NULL,refresh_expires INTEGER NOT NULL,revoked INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS profiles(user_id TEXT PRIMARY KEY REFERENCES users(id),bio TEXT NOT NULL DEFAULT '',avatar_asset_id TEXT REFERENCES assets(id),interests TEXT NOT NULL DEFAULT '[]',links TEXT NOT NULL DEFAULT '[]',updated_at TEXT NOT NULL);
     `);
   }
@@ -197,9 +200,14 @@ export class Store {
         ? this.db
             .query('SELECT user_id FROM sessions WHERE hash=? AND expires>?')
             .get(digest(token), Date.now())
-        : this.db
+        : (this.db
             .query('SELECT user_id FROM tokens WHERE hash=? AND expires>? AND revoked=0')
-            .get(digest(token), Date.now());
+            .get(digest(token), Date.now()) ??
+          this.db
+            .query(
+              'SELECT user_id FROM oauth_grants WHERE access_hash=? AND access_expires>? AND revoked=0',
+            )
+            .get(digest(token), Date.now()));
     return row ? { user: this.user((row as { user_id: string }).user_id), mode } : null;
   }
   createToken(userId: string, label: string) {
@@ -211,15 +219,23 @@ export class Store {
       .run(id, digest(token), userId, label, expires, now());
     return { id, token, expires };
   }
+  /** Agent connections: issued tokens and OAuth connector grants (expires is the refresh limit). */
   tokens(userId: string) {
     return this.db
       .query(
-        'SELECT id,label,expires,revoked,created_at FROM tokens WHERE user_id=? ORDER BY created_at DESC',
+        "SELECT id,label,expires,revoked,created_at,'token' AS kind FROM tokens WHERE user_id=?1 UNION ALL SELECT id,label,refresh_expires AS expires,revoked,created_at,'connector' AS kind FROM oauth_grants WHERE user_id=?1 ORDER BY created_at DESC",
       )
-      .all(userId) as { id: string; label: string; expires: number; revoked: number }[];
+      .all(userId) as {
+      id: string;
+      label: string;
+      expires: number;
+      revoked: number;
+      kind: 'token' | 'connector';
+    }[];
   }
   revoke(userId: string, id: string) {
     this.db.query('UPDATE tokens SET revoked=1 WHERE user_id=? AND id=?').run(userId, id);
+    this.db.query('UPDATE oauth_grants SET revoked=1 WHERE user_id=? AND id=?').run(userId, id);
   }
   private parseWork(row: unknown): Work {
     const value = row as Omit<Work, 'data'> & { data: string };

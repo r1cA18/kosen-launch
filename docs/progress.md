@@ -1,5 +1,16 @@
 # 実装進捗
 
+## リモートMCPとOAuth 2026年11月8日
+
+Claude Codeを使わない高専生がclaude.aiとClaude DesktopのカスタムコネクタにURLを入れるだけで使えるように、同じアプリへリモートMCPと認可サーバーを追加した。
+
+- `/mcp`：Streamable HTTP。SDKの`createMcpHandler`でstatelessに処理し、2025年版クライアントにも対応する。ツールは`src/mcp-tools.ts`でstdioと共通化した
+- OAuth：RFC 9728とRFC 8414のメタデータ、DCR、PKCE S256の認可コード、更新トークンのローテーション。設計は[アーキテクチャ](architecture.md)に記録した
+- 同意画面と未ログイン時のログイン後の復帰。Settingsのエージェント接続は3つの接続方法に書き直した
+- リモートの`upload_image`はbase64（2MB以内）だけを受ける。Skillのzipを配布し、MCP Skills拡張でも同じSkillを返す
+- 検証済み：71件のテスト。隔離DBのサーバーでSDKのHTTPクライアントとClaude Codeのheadless（トークンヘッダー）からツールを実行。Chromeで同意後のループバックへのリダイレクトがCSPで止まらないことを確認
+- 未確認：claude.aiとClaude Desktopからの実接続（公開HTTPSのURLが必要）、Claude CodeのOAuth接続、claude.aiがSkills拡張を読むか。Client ID Metadata Documentは未対応
+
 ## コンセプトに沿った全画面の作り込み 2026年11月8日
 
 本人の修正点を受け、「高専でやっていることを、次の誘いにつなげる」の流れが全画面で見えるように作り直した。

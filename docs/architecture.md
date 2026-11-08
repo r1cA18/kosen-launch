@@ -20,7 +20,9 @@ flowchart LR
     A[Webの登録とレビューと公開とSNS] --> C[共通API]
     L[ローカルの制作資料] --> B
     B[外部エージェントとSkill] --> M[ローカルMCPアダプター]
+    W[claude.aiとClaude DesktopとClaude Code] --> H[リモートMCPとOAuth]
     M --> C
+    H --> C
     C --> D[作品と編集と公開の処理]
     D --> E[DBとファイル保存]
     D --> J[推薦と追加素材の非同期処理]
@@ -175,9 +177,20 @@ MCPのToolは入力Schemaを持ち、構造化した結果と出力Schemaを扱�
 
 ### 認証と接続
 
-Webには通常のアカウント認証を置く。初版の外部エージェント接続はローカルのstdioアダプターを使い、利用者がWebで発行した期限と対象操作のある失効可能な連携トークンでAPIを呼ぶ。サービスのClaude APIキーを利用者へ配布しない。連携の解除で以後のアクセスを止める。
+Webには通常のアカウント認証を置く。stdioアダプターは利用者がWebで発行した期限付きで失効可能な連携トークンでAPIを呼ぶ。サービスのClaude APIキーを利用者へ配布しない。連携の解除で以後のアクセスを止める。
 
-Remote HTTP MCPを提供する段階ではMCPの認可仕様に沿うOAuth接続を実装する。stdioとHTTPの認証を同一として扱わない。これは接続方式の設計であり、各クライアントでの接続検証は実装時に行う。[MCP Authorization仕様](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
+Claude Codeを使わない利用者に届けるため、同じアプリにStreamable HTTPのリモートMCP`/mcp`とOAuth 2.1の認可サーバーを置く。claude.aiとClaude Desktopはカスタムコネクタに`<APP_ORIGIN>/mcp`を入れるだけで接続できる。ツール定義は`src/mcp-tools.ts`に一つだけ置き、stdioは外部のHTTP APIを、`/mcp`はアプリ内部の`app.fetch`を同じBearerトークンで呼ぶ。ロジックは`/v1`のAPIに残し重複させない。[MCP Authorization仕様](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+
+- 発見：`/.well-known/oauth-protected-resource`（RFC 9728、`/mcp`付きも同内容）と`/.well-known/oauth-authorization-server`（RFC 8414）。`resource`は`<APP_ORIGIN>/mcp`
+- 登録：`/oauth/register`のDynamic Client Registration。redirect_uriはHTTPSかループバックに限り、公開クライアント（`none`）として登録する。Client ID Metadata Documentは未対応
+- 認可：`/oauth/authorize`はログインと同意を求める。PKCEはS256だけ。ループバックのredirect_uriはポートを問わず照合する。応答に`iss`を付ける
+- トークン：`/oauth/token`はform-urlencodedで受け、認可コードは2分・一回限りでclient_idとredirect_uriとcode_verifierとresourceを照合する。再利用されたコードは発行済みの接続を失効させる
+- 寿命：アクセストークン1時間、更新トークン30日。更新のたびに両方を入れ替え古いものは無効にする。保存はSHA-256のハッシュだけ
+- 権限：既存の連携トークンと同じで、作品の下書き作成と更新案と画像送信に限る。公開とアカウント管理はWebで本人が行う
+- 失効：接続は設定のAgentタブに「Claude（コネクタ）」として表示され、解除するとアクセスと更新の両トークンが止まる
+- 保護：`/mcp`はBearer必須でCookieを使わない。Originがあれば自サイト以外を403にし、ループバックで動かすときはHostも確認する。GETとDELETEは405
+- 画像：リモートの`upload_image`はサーバーのファイルを読めないようにパスを受けず、2MB以内のbase64だけを受ける
+- Skill：`/downloads/kosen-portfolio-skill.zip`で配り、MCP Skills拡張（SEP-2640）でも同じSKILL.mdを返す
 
 ### Skillの役割
 
