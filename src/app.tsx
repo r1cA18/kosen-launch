@@ -37,6 +37,7 @@ import { ConsolePage, BulkTextPage } from './console-ui';
 import { applyAllFixes, applyFix, isEditableField, replaceAll } from './console';
 import { applySchema, type UiEditor } from './ui-editor';
 import { EditorPage } from './editor-ui';
+import { WelcomePage } from './welcome-ui';
 import { layoutOf, withLayout } from './layout';
 
 type Env = { Variables: { identity: Identity | null } };
@@ -221,7 +222,18 @@ export function createApp(store: Store, options: Options) {
     throttle(input.email);
     const user = await store.register(input);
     authenticate(c, user.id);
-    return c.redirect('/settings/agents', 303);
+    return c.redirect('/welcome', 303);
+  });
+  app.get('/welcome', (c) => {
+    const { user } = requireUser(c, true);
+    return c.html(
+      <WelcomePage
+        user={user}
+        profile={store.profileOf(user.id)}
+        works={store.works(user.id).length}
+        connected={store.tokens(user.id).some((t) => !t.revoked)}
+      />,
+    );
   });
   app.post('/login', async (c) => {
     const body = z
