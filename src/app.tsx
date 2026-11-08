@@ -7,11 +7,15 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Store, DomainError, type Identity } from './store';
+import { ProfilePage } from './profile-ui';
+import { SettingsPage, type SettingsTab } from './settings-ui';
 import { SocialStore, invitationSchema } from './social';
 import { TimelineStore, parseRoles } from './timeline';
 import { Timeline, TimelinePostPage } from './timeline-ui';
 import { Opportunities, opportunitySchema, planState, type ClaudeOptions } from './opportunities';
-import { Conversation, ConnectionsPage, OpportunitiesPage, OpportunityPage } from './social-ui';
+import { Conversation, ConnectionsPage } from './social-ui';
+import { EventsPage, EventsRail, OpportunityPage, type EventsTab } from './events-ui';
+import { Discovery, type DiscoveryOptions } from './discovery';
 import {
   registrationSchema,
   createWorkSchema,
@@ -19,6 +23,7 @@ import {
   publishSchema,
   workSchema,
   authoringRules,
+  profileSchema,
 } from './schema';
 import {
   LandingPage,
@@ -26,15 +31,18 @@ import {
   HomePage,
   WorksPage,
   WorkEditor,
+  PreviewPage,
+  DraftsRail,
   ReviewPage,
-  ConnectPage,
-  PublicPortfolio,
   PublicWorkPage,
   ErrorPage,
 } from './ui';
 import { ConsolePage, BulkTextPage } from './console-ui';
 import { applyAllFixes, applyFix, isEditableField, replaceAll } from './console';
 import { applySchema, type UiEditor } from './ui-editor';
+import { EditorPage } from './editor-ui';
+import { WelcomePage } from './welcome-ui';
+import { layoutOf, withLayout } from './layout';
 
 type Env = { Variables: { identity: Identity | null } };
 type Options = {
@@ -42,7 +50,7 @@ type Options = {
   assetDirectory: string;
   staticDirectory: string;
   skillPath: string;
-  claude?: ClaudeOptions;
+  claude?: ClaudeOptions & Pick<DiscoveryOptions, 'rustxng'>;
   uiEditor?: UiEditor;
 };
 export function createApp(store: Store, options: Options) {
@@ -50,6 +58,7 @@ export function createApp(store: Store, options: Options) {
   const social = new SocialStore(store);
   const timeline = new TimelineStore(store, social);
   const opportunities = new Opportunities(store, options.claude);
+  const discovery = new Discovery(store, opportunities, options.claude);
   const origin = new URL(options.origin).origin;
   const attempts = new Map<string, { count: number; until: number }>();
   app.use(
@@ -192,6 +201,7 @@ export function createApp(store: Store, options: Options) {
     ['fonts.css', 'text/css'],
     ['app.js', 'text/javascript'],
     ['client.js', 'text/javascript'],
+    ['editor.js', 'text/javascript'],
     ['LICENSE-meniscus.txt', 'text/plain; charset=utf-8'],
     ['console.js', 'text/javascript'],
     ['favicon.svg', 'image/svg+xml'],
@@ -217,7 +227,18 @@ export function createApp(store: Store, options: Options) {
     throttle(input.email);
     const user = await store.register(input);
     authenticate(c, user.id);
-    return c.redirect('/settings/agents', 303);
+    return c.redirect('/welcome', 303);
+  });
+  app.get('/welcome', (c) => {
+    const { user } = requireUser(c, true);
+    return c.html(
+      <WelcomePage
+        user={user}
+        profile={store.profileOf(user.id)}
+        works={store.works(user.id).length}
+        connected={store.tokens(user.id).some((t) => !t.revoked)}
+      />,
+    );
   });
   app.post('/login', async (c) => {
     const body = z
@@ -237,8 +258,28 @@ export function createApp(store: Store, options: Options) {
   app.get('/home', (c) => {
     const { user } = requireUser(c, true);
     const role = c.req.query('role')?.slice(0, 30) || undefined;
+    const profile = store.profileOf(user.id);
+    const works = store.works(user.id);
+    const proposals = Object.fromEntries(
+      works.map((w) => [w.id, store.proposals(user.id, w.id).length]),
+    );
+    discovery.ensure(user.id);
     return c.html(
-      <HomePage user={user} works={store.works(user.id)}>
+      <HomePage
+        user={user}
+        rail={
+          <>
+            <DraftsRail works={works} proposals={proposals} />
+            <EventsRail items={opportunities.forYou(user.id, 3)} />
+          </>
+        }
+        setupProfile={
+          !profile.bio &&
+          !profile.avatar_asset_id &&
+          !profile.interests.length &&
+          !profile.links.length
+        }
+      >
         <Timeline
           user={user}
           timeline={timeline}
@@ -248,6 +289,16 @@ export function createApp(store: Store, options: Options) {
             filter: c.req.query('filter') === 'recruit' ? 'recruit' : 'all',
             role,
             compose: c.req.query('compose') === 'recruit' ? 'recruit' : 'progress',
+            prefill: {
+              title: c.req.query('title')?.slice(0, 100),
+              url: /^https?:\/\//.test(c.req.query('url') ?? '')
+                ? c.req.query('url')!.slice(0, 1500)
+                : undefined,
+              deadline: /^\d{4}-\d{2}-\d{2}$/.test(c.req.query('deadline') ?? '')
+                ? c.req.query('deadline')
+                : undefined,
+              roles: c.req.query('roles')?.slice(0, 300),
+            },
           }}
         />
       </HomePage>,
@@ -255,7 +306,18 @@ export function createApp(store: Store, options: Options) {
   });
   app.get('/works', (c) => {
     const { user } = requireUser(c, true);
-    return c.html(<WorksPage user={user} works={store.works(user.id)} />);
+    const works = store.works(user.id);
+    const filter = z
+      .enum(['all', 'draft', 'agent', 'published'])
+      .catch('all')
+      .parse(c.req.query('filter'));
+    const view = z.enum(['list', 'grid']).catch('list').parse(c.req.query('view'));
+    const proposals = Object.fromEntries(
+      works.map((w) => [w.id, store.proposals(user.id, w.id).length]),
+    );
+    return c.html(
+      <WorksPage user={user} works={works} proposals={proposals} filter={filter} view={view} />,
+    );
   });
   app.get('/works/text', (c) => {
     const { user } = requireUser(c, true);
@@ -339,6 +401,51 @@ export function createApp(store: Store, options: Options) {
     const { user } = requireUser(c, true);
     const work = store.work(user.id, c.req.param('id'));
     return c.html(
+      <EditorPage
+        user={user}
+        work={work}
+        store={store}
+        proposals={store.proposals(user.id, work.id)}
+      />,
+    );
+  });
+  app.get('/works/:id/preview', (c) => {
+    const { user } = requireUser(c, true);
+    return c.html(
+      <PreviewPage user={user} work={store.work(user.id, c.req.param('id'))} store={store} />,
+    );
+  });
+  app.post('/works/:id/document', async (c) => {
+    const { user } = requireUser(c, true),
+      id = c.req.param('id'),
+      body = z
+        .object({ revision: z.number().int().positive(), data: z.unknown() })
+        .parse(await c.req.json());
+    const current = store.work(user.id, id);
+    const input = workSchema.parse({
+      ...(body.data as object),
+      sources: current.data.sources,
+      assessment: current.data.assessment,
+    });
+    const work = store.updateWork(
+      user.id,
+      id,
+      body.revision,
+      withLayout(input, input.layout ?? layoutOf(input)),
+    );
+    return c.json({ revision: work.revision });
+  });
+  app.post('/works/:id/assets', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody();
+    store.work(user.id, c.req.param('id'));
+    const id = await upload(user.id, b.image as File, String(b.alt ?? '') || '作品の画像');
+    return c.json({ id, url: `/assets/${id}`, alt: store.asset(id, user.id).alt }, 201);
+  });
+  app.get('/works/:id/form', (c) => {
+    const { user } = requireUser(c, true);
+    const work = store.work(user.id, c.req.param('id'));
+    return c.html(
       <WorkEditor
         user={user}
         work={work}
@@ -379,7 +486,7 @@ export function createApp(store: Store, options: Options) {
     });
     store.updateWork(user.id, id, z.coerce.number().int().positive().parse(b.revision), data);
     return c.redirect(
-      b.return === 'console' ? `/works/${id}/console?saved=1` : `/works/${id}?saved=1`,
+      b.return === 'console' ? `/works/${id}/console?saved=1` : `/works/${id}/form?saved=1`,
       303,
     );
   });
@@ -391,7 +498,8 @@ export function createApp(store: Store, options: Options) {
     const base = z.coerce.number().int().positive().parse(b.revision);
     if (base !== work.revision)
       throw new DomainError(409, '作品が更新されています。再読み込みしてください。');
-    if (work.data.asset_ids.length >= 8) throw new DomainError(422, '画像は8枚まで追加できます。');
+    if (work.data.asset_ids.length >= 12)
+      throw new DomainError(422, '画像は12枚まで追加できます。');
     const asset = await upload(user.id, b.image as File, String(b.alt ?? ''));
     store.updateWork(user.id, id, base, {
       ...work.data,
@@ -433,23 +541,68 @@ export function createApp(store: Store, options: Options) {
       const id = store.resolveProposal(user.id, c.req.param('id'), action === 'accept');
       return c.redirect(`/works/${id}`, 303);
     });
-  app.get('/settings/agents', (c) => {
+  const settingsPage = (
+    c: Context<Env>,
+    tab: SettingsTab,
+    extra: { issued?: { token: string; expires: number }; notice?: string } = {},
+  ) => {
     const { user } = requireUser(c, true);
-    return c.html(<ConnectPage user={user} tokens={store.tokens(user.id)} origin={origin} />);
+    return c.html(
+      <SettingsPage
+        user={store.user(user.id)}
+        tab={tab}
+        profile={store.profileOf(user.id)}
+        tokens={store.tokens(user.id)}
+        origin={origin}
+        {...extra}
+      />,
+    );
+  };
+  app.get('/settings', (c) => {
+    const tab = c.req.query('tab');
+    return settingsPage(c, tab === 'agent' || tab === 'account' ? tab : 'profile', {
+      notice: c.req.query('saved') ? 'プロフィールを保存しました。' : undefined,
+    });
+  });
+  app.get('/settings/agents', (c) => {
+    requireUser(c, true);
+    return c.redirect('/settings?tab=agent', 302);
+  });
+  app.post('/settings/profile', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody(),
+      current = store.profileOf(user.id);
+    const field = (key: string) => String(b[key] ?? '').trim();
+    const name = z.string().trim().min(1).max(60).parse(b.display_name);
+    const links = Array.from({ length: 6 }, (_, i) => ({
+      label: field(`link_label_${i}`),
+      url: field(`link_url_${i}`),
+    })).filter((l) => l.label || l.url);
+    const data = profileSchema.parse({
+      bio: field('bio'),
+      avatar_asset_id: b.remove_avatar === 'yes' ? null : current.avatar_asset_id,
+      interests: parseRoles(b.interests).slice(0, 16),
+      links,
+    });
+    const file = b.avatar;
+    if (file instanceof File && file.size > 0)
+      data.avatar_asset_id = await upload(user.id, file, `${name}のアイコン`);
+    store.db.transaction(() => {
+      store.updateProfile(user.id, data);
+      store.updateDisplayName(user.id, name);
+    })();
+    return c.redirect('/settings?saved=1', 303);
   });
   app.post('/settings/agents/tokens', async (c) => {
     const { user } = requireUser(c, true),
       b = await c.req.parseBody(),
       label = z.string().trim().min(1).max(80).parse(b.label);
-    const issued = store.createToken(user.id, label);
-    return c.html(
-      <ConnectPage user={user} tokens={store.tokens(user.id)} issued={issued} origin={origin} />,
-    );
+    return settingsPage(c, 'agent', { issued: store.createToken(user.id, label) });
   });
   app.post('/settings/agents/tokens/:id/revoke', (c) => {
     const { user } = requireUser(c, true);
     store.revoke(user.id, c.req.param('id'));
-    return c.redirect('/settings/agents', 303);
+    return c.redirect('/settings?tab=agent', 303);
   });
   app.get('/downloads/kosen-portfolio-skill.md', async (c) => {
     c.header('Content-Type', 'text/markdown; charset=utf-8');
@@ -457,12 +610,17 @@ export function createApp(store: Store, options: Options) {
     return c.body(await Bun.file(options.skillPath).text());
   });
   app.get('/u/:handle', (c) => {
-    const profile = store.profile(c.req.param('handle'));
-    if (!profile) throw new DomainError(404, '公開ページが見つかりません。');
+    const person = store.publicUser(c.req.param('handle'));
+    if (!person) throw new DomainError(404, '公開ページが見つかりません。');
+    const identity = c.get('identity');
     return c.html(
-      <PublicPortfolio
-        profile={profile}
-        works={store.published(profile.handle)}
+      <ProfilePage
+        person={person}
+        profile={store.profileOf(person.id)}
+        viewer={identity?.mode === 'session' ? identity.user : undefined}
+        works={store.published(person.handle)}
+        timeline={timeline}
+        tab={c.req.query('tab') === 'posts' ? 'posts' : 'works'}
         year={c.req.query('year')}
         tag={c.req.query('tag')}
       />,
@@ -489,10 +647,20 @@ export function createApp(store: Store, options: Options) {
   });
   app.get('/connections', (c) => {
     const { user } = requireUser(c, true);
+    const handle = c.req.query('with');
+    const found = handle ? store.publicUser(handle) : null;
+    const person =
+      found && found.id !== user.id && !social.blocked(user.id, found.id)
+        ? timeline.person(found.id)
+        : undefined;
+    if (person) social.readFrom(user.id, person.id);
     return c.html(
       <ConnectionsPage
         user={user}
         social={social}
+        timeline={timeline}
+        tab={c.req.query('tab') === 'notifications' ? 'notifications' : 'messages'}
+        person={person}
         notice={
           c.req.query('reported')
             ? '通報を記録して自分の画面で非表示にしました。'
@@ -502,6 +670,14 @@ export function createApp(store: Store, options: Options) {
         }
       />,
     );
+  });
+  const messagesBack = (value: unknown) =>
+    /^\/connections(\?[A-Za-z0-9=&%_.-]*)?$/.test(String(value)) ? String(value) : null;
+  app.post('/social/questions', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody();
+    social.ask(user.id, String(b.work_id ?? ''), String(b.body ?? ''));
+    return c.redirect(messagesBack(b.back) ?? '/connections', 303);
   });
   app.post('/social/works/:id/questions', async (c) => {
     const { user } = requireUser(c, true),
@@ -514,7 +690,10 @@ export function createApp(store: Store, options: Options) {
     const { user } = requireUser(c, true),
       b = await c.req.parseBody();
     const id = social.answer(user.id, c.req.param('id'), String(b.answer ?? ''));
-    return c.redirect(`/u/${social.shared(id, user.id).handle}/works/${id}#conversation`, 303);
+    return c.redirect(
+      messagesBack(b.back) ?? `/u/${social.shared(id, user.id).handle}/works/${id}#conversation`,
+      303,
+    );
   });
   app.post('/social/questions/:id/delete', (c) => {
     social.removeQuestion(requireUser(c, true).user.id, c.req.param('id'));
@@ -539,13 +718,13 @@ export function createApp(store: Store, options: Options) {
       c.req.param('id'),
       z.enum(['accepted', 'declined', 'cancelled']).parse(b.state),
     );
-    return c.redirect('/connections?saved=1', 303);
+    return c.redirect(messagesBack(b.back) ?? '/connections?saved=1', 303);
   });
   app.post('/social/invitations/:id/contact', async (c) => {
     const { user } = requireUser(c, true),
       b = await c.req.parseBody();
     social.contact(user.id, c.req.param('id'), String(b.contact ?? ''));
-    return c.redirect('/connections?saved=1', 303);
+    return c.redirect(messagesBack(b.back) ?? '/connections?saved=1', 303);
   });
   app.post('/social/blocks/:id', (c) => {
     social.block(requireUser(c, true).user.id, c.req.param('id'));
@@ -560,7 +739,9 @@ export function createApp(store: Store, options: Options) {
     return c.redirect('/connections', 303);
   });
   const backTo = (value: unknown) =>
-    /^\/(home|timeline\/[0-9a-f-]{36})(\?[A-Za-z0-9=&%_.-]*)?$/.test(String(value))
+    /^\/(home|timeline\/[0-9a-f-]{36}|u\/[a-z][a-z0-9-]{2,29})(\?[A-Za-z0-9=&%_.-]*)?$/.test(
+      String(value),
+    )
       ? String(value)
       : '/home';
   app.post('/timeline/posts', async (c) => {
@@ -633,19 +814,42 @@ export function createApp(store: Store, options: Options) {
       c.req.param('id'),
       z.enum(['accepted', 'declined', 'cancelled']).parse(b.state),
     );
-    return c.redirect(`/timeline/${post}#joins`, 303);
+    return c.redirect(messagesBack(b.back) ?? `/timeline/${post}#joins`, 303);
   });
   app.post('/timeline/joins/:id/contact', async (c) => {
     const { user } = requireUser(c, true),
       b = await c.req.parseBody();
     const post = timeline.contact(user.id, c.req.param('id'), String(b.contact ?? ''));
-    return c.redirect(`/timeline/${post}#joins`, 303);
+    return c.redirect(messagesBack(b.back) ?? `/timeline/${post}#joins`, 303);
   });
   app.get('/opportunities', (c) => {
     const { user } = requireUser(c, true);
+    const tab = c.req.query('tab');
+    discovery.ensure(user.id);
     return c.html(
-      <OpportunitiesPage user={user} opportunities={opportunities} works={store.works(user.id)} />,
+      <EventsPage
+        user={user}
+        tab={(['saved', 'plans'].includes(tab ?? '') ? tab : 'foryou') as EventsTab}
+        opportunities={opportunities}
+        status={{
+          enabled: discovery.enabled(),
+          running: discovery.running(user.id),
+          last: discovery.last(user.id),
+        }}
+      />,
     );
+  });
+  app.post('/opportunities/suggestions/:id/save', (c) => {
+    const { user } = requireUser(c, true);
+    return c.redirect(
+      `/opportunities/${opportunities.saveSuggestion(user.id, c.req.param('id'))}`,
+      303,
+    );
+  });
+  app.post('/opportunities/suggestions/:id/dismiss', (c) => {
+    const { user } = requireUser(c, true);
+    opportunities.dismissSuggestion(user.id, c.req.param('id'));
+    return c.redirect('/opportunities', 303);
   });
   app.post('/opportunities', async (c) => {
     const { user } = requireUser(c, true),

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { DomainError, type Published, type Store } from './store';
-import { webUrl, type SocialStore } from './social';
+import { webUrl, type Invitation, type SocialStore } from './social';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
@@ -53,6 +53,7 @@ export type Post = {
   created_at: string;
   display_name: string;
   handle: string;
+  avatar: string | null;
   likes: number;
   liked: boolean;
   replies: number;
@@ -74,8 +75,30 @@ export type Join = {
   created_at: string;
   applicant_name: string;
   applicant_handle: string;
+  applicant_avatar: string | null;
   work: Published | null;
 };
+export type Person = { id: string; display_name: string; handle: string; avatar: string | null };
+/** One entry of a direct conversation, built from questions, invitations and joins. */
+export type Message = { at: string; order: number; from: string } & (
+  | {
+      type: 'question' | 'answer';
+      question_id: string;
+      body: string;
+      work_title: string;
+      work_href: string;
+    }
+  | { type: 'invitation'; invitation: Invitation }
+  | { type: 'join'; join: Join; post_title: string }
+);
+export type ConversationSummary = {
+  person: Person;
+  last: Message;
+  unread: boolean;
+  count: number;
+};
+
+const byTime = (a: Message, b: Message) => a.at.localeCompare(b.at) || a.order - b.order;
 
 export class TimelineStore {
   constructor(
@@ -101,11 +124,11 @@ export class TimelineStore {
     return (
       this.store.db
         .query(
-          `SELECT t.*,u.display_name,u.handle,
+          `SELECT t.*,u.display_name,u.handle,pr.avatar_asset_id AS avatar,
             (SELECT count(*) FROM timeline_likes l WHERE l.post_id=t.id) AS likes,
             (SELECT count(*) FROM timeline_posts r WHERE r.parent_id=t.id) AS replies,
             EXISTS(SELECT 1 FROM timeline_likes l WHERE l.post_id=t.id AND l.user_id=?) AS liked
-          FROM timeline_posts t JOIN users u ON u.id=t.author_id WHERE ${where} ORDER BY t.created_at DESC,t.rowid DESC LIMIT ${limit}`,
+          FROM timeline_posts t JOIN users u ON u.id=t.author_id LEFT JOIN profiles pr ON pr.user_id=t.author_id WHERE ${where} ORDER BY t.created_at DESC,t.rowid DESC LIMIT ${limit}`,
         )
         .all(viewer, ...(params as string[])) as (Omit<Post, 'data' | 'work' | 'liked'> & {
         data: string;
@@ -213,6 +236,127 @@ export class TimelineStore {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([r]) => r);
+  }
+  /** Posts shown on a profile. An empty viewer is an anonymous visitor. */
+  byAuthor(authorId: string, viewer: string): TimelineItem[] {
+    if (viewer && this.social.blocked(viewer, authorId)) return [];
+    const items: TimelineItem[] = this.rows(
+      "t.author_id=? AND t.kind IN ('progress','recruit')",
+      [authorId],
+      viewer,
+      80,
+    ).map((post) => ({ type: 'post', at: post.created_at, post }));
+    const handle = this.store.user(authorId).handle;
+    for (const work of this.store.published(handle).filter((w) => w.share_to_feed))
+      items.push({ type: 'share', at: work.published_at, work });
+    return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 80);
+  }
+  person(userId: string): Person {
+    const u = this.store.user(userId);
+    return {
+      id: u.id,
+      display_name: u.display_name,
+      handle: u.handle,
+      avatar: this.store.avatarOf(u.id),
+    };
+  }
+  /** Every message between the viewer and other people, grouped by the other person. */
+  private messages(viewer: string) {
+    const out: (Message & { other: string })[] = [];
+    const questions = this.store.db
+      .query(
+        `SELECT q.id,q.work_id,q.author_id,q.body,q.answer,q.created_at,w.owner_id,u.handle AS owner_handle,p.data
+        FROM social_questions q JOIN works w ON w.id=q.work_id JOIN users u ON u.id=w.owner_id
+        JOIN publications p ON p.work_id=q.work_id AND p.share_to_feed=1
+        WHERE (q.author_id=? OR w.owner_id=?) AND q.author_id<>w.owner_id
+        AND NOT EXISTS(SELECT 1 FROM social_reports r WHERE r.reporter_id=? AND r.question_id=q.id)
+        ORDER BY q.created_at DESC LIMIT 300`,
+      )
+      .all(viewer, viewer, viewer) as {
+      id: string;
+      work_id: string;
+      author_id: string;
+      body: string;
+      answer: string;
+      created_at: string;
+      owner_id: string;
+      owner_handle: string;
+      data: string;
+    }[];
+    for (const q of questions) {
+      const other = q.author_id === viewer ? q.owner_id : q.author_id;
+      if (this.social.blocked(viewer, other)) continue;
+      const base = {
+        question_id: q.id,
+        work_title: JSON.parse(q.data).title as string,
+        work_href: `/u/${q.owner_handle}/works/${q.work_id}#conversation`,
+        at: q.created_at,
+        other,
+      };
+      out.push({ ...base, type: 'question', order: 0, from: q.author_id, body: q.body });
+      if (q.answer)
+        out.push({ ...base, type: 'answer', order: 1, from: q.owner_id, body: q.answer });
+    }
+    for (const invitation of this.social.invitations(viewer))
+      out.push({
+        type: 'invitation',
+        invitation,
+        at: invitation.created_at,
+        order: 0,
+        from: invitation.sender_id,
+        other: invitation.sender_id === viewer ? invitation.recipient_id : invitation.sender_id,
+      });
+    const posts = this.store.db
+      .query(
+        `SELECT DISTINCT j.post_id,t.data FROM timeline_joins j JOIN timeline_posts t ON t.id=j.post_id
+        WHERE j.applicant_id=? OR j.owner_id=? LIMIT 200`,
+      )
+      .all(viewer, viewer) as { post_id: string; data: string }[];
+    for (const p of posts)
+      for (const join of this.joins(p.post_id, viewer))
+        out.push({
+          type: 'join',
+          join,
+          post_title: JSON.parse(p.data).title ?? '仲間募集',
+          at: join.created_at,
+          order: 0,
+          from: join.applicant_id,
+          other: join.applicant_id === viewer ? join.owner_id : join.applicant_id,
+        });
+    return out.filter((m) => m.other !== viewer);
+  }
+  conversations(viewer: string): ConversationSummary[] {
+    const unread = new Set(
+      this.social
+        .notices(viewer)
+        .filter((n) => !n.read)
+        .map((n) => n.actor_id),
+    );
+    const groups = new Map<string, Message[]>();
+    for (const m of this.messages(viewer)) groups.set(m.other, [...(groups.get(m.other) ?? []), m]);
+    return [...groups]
+      .map(([other, list]) => ({
+        person: this.person(other),
+        last: list.sort(byTime).at(-1)!,
+        unread: unread.has(other),
+        count: list.length,
+      }))
+      .sort((a, b) => byTime(b.last, a.last));
+  }
+  thread(viewer: string, other: string): Message[] {
+    return this.messages(viewer)
+      .filter((m) => m.other === other)
+      .sort(byTime);
+  }
+  /** The newest question from `other` on the viewer's works that still has no answer. */
+  openQuestion(viewer: string, other: string) {
+    const thread = this.thread(viewer, other);
+    const answered = new Set(thread.flatMap((m) => (m.type === 'answer' ? [m.question_id] : [])));
+    return thread
+      .flatMap((m) =>
+        m.type === 'question' && m.from === other && !answered.has(m.question_id) ? [m] : [],
+      )
+      .at(-1);
   }
   replies(postId: string, viewer: string) {
     return this.rows('t.parent_id=?', [postId], viewer, 100).reverse();
@@ -335,7 +479,7 @@ export class TimelineStore {
   joins(postId: string, viewer: string): Join[] {
     const rows = this.store.db
       .query(
-        'SELECT j.*,u.display_name AS applicant_name,u.handle AS applicant_handle FROM timeline_joins j JOIN users u ON u.id=j.applicant_id WHERE j.post_id=? AND (j.applicant_id=? OR j.owner_id=?) ORDER BY j.created_at',
+        'SELECT j.*,u.display_name AS applicant_name,u.handle AS applicant_handle,pr.avatar_asset_id AS applicant_avatar FROM timeline_joins j JOIN users u ON u.id=j.applicant_id LEFT JOIN profiles pr ON pr.user_id=j.applicant_id WHERE j.post_id=? AND (j.applicant_id=? OR j.owner_id=?) ORDER BY j.created_at',
       )
       .all(postId, viewer, viewer) as Join[];
     return rows
