@@ -76,6 +76,15 @@ export class SocialStore {
       END;
       CREATE INDEX IF NOT EXISTS social_notices_user ON social_notices(user_id,created_at);
       CREATE INDEX IF NOT EXISTS social_questions_work ON social_questions(work_id,created_at);
+      CREATE TABLE IF NOT EXISTS timeline_posts(id TEXT PRIMARY KEY,author_id TEXT NOT NULL REFERENCES users(id),kind TEXT NOT NULL,parent_id TEXT,work_id TEXT,body TEXT NOT NULL,data TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS timeline_posts_time ON timeline_posts(kind,created_at);
+      CREATE INDEX IF NOT EXISTS timeline_posts_parent ON timeline_posts(parent_id,created_at);
+      CREATE TABLE IF NOT EXISTS timeline_likes(user_id TEXT NOT NULL REFERENCES users(id),post_id TEXT NOT NULL,PRIMARY KEY(user_id,post_id));
+      CREATE TABLE IF NOT EXISTS timeline_reports(id TEXT PRIMARY KEY,reporter_id TEXT NOT NULL REFERENCES users(id),post_id TEXT NOT NULL,reason TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(reporter_id,post_id));
+      CREATE TABLE IF NOT EXISTS timeline_joins(id TEXT PRIMARY KEY,post_id TEXT NOT NULL,applicant_id TEXT NOT NULL REFERENCES users(id),owner_id TEXT NOT NULL REFERENCES users(id),role TEXT NOT NULL,work_id TEXT,message TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'pending',applicant_contact TEXT NOT NULL DEFAULT '',owner_contact TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL);
+      CREATE UNIQUE INDEX IF NOT EXISTS timeline_pending_join ON timeline_joins(post_id,applicant_id) WHERE state IN ('pending','accepted');
+      CREATE TABLE IF NOT EXISTS timeline_notices(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),actor_id TEXT NOT NULL REFERENCES users(id),post_id TEXT NOT NULL,message TEXT NOT NULL,href TEXT NOT NULL,read INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS timeline_notices_user ON timeline_notices(user_id,created_at);
     `);
   }
   blocked(a: string, b: string) {
@@ -106,17 +115,29 @@ export class SocialStore {
       .query('INSERT INTO social_notices VALUES(?,?,?,?,?,?,0,?)')
       .run(randomUUID(), userId, actor, workId, message, href, now());
   }
+  timelineNotice(userId: string, actor: string, postId: string, message: string, href: string) {
+    if (userId === actor) return;
+    this.store.db
+      .query('INSERT INTO timeline_notices VALUES(?,?,?,?,?,?,0,?)')
+      .run(randomUUID(), userId, actor, postId, message, href, now());
+  }
   notices(userId: string): Notice[] {
-    return (
-      this.store.db
-        .query(
-          'SELECT n.* FROM social_notices n JOIN publications p ON p.work_id=n.work_id WHERE n.user_id=? AND p.share_to_feed=1 ORDER BY n.created_at DESC LIMIT 100',
-        )
-        .all(userId) as (Notice & { actor_id: string })[]
-    ).filter((n) => !this.blocked(userId, n.actor_id));
+    const works = this.store.db
+      .query(
+        'SELECT n.* FROM social_notices n JOIN publications p ON p.work_id=n.work_id WHERE n.user_id=? AND p.share_to_feed=1 ORDER BY n.created_at DESC LIMIT 100',
+      )
+      .all(userId) as (Notice & { actor_id: string })[];
+    const posts = this.store.db
+      .query('SELECT * FROM timeline_notices WHERE user_id=? ORDER BY created_at DESC LIMIT 100')
+      .all(userId) as (Notice & { actor_id: string })[];
+    return [...works, ...posts]
+      .filter((n) => !this.blocked(userId, n.actor_id))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, 100);
   }
   read(userId: string) {
     this.store.db.query('UPDATE social_notices SET read=1 WHERE user_id=?').run(userId);
+    this.store.db.query('UPDATE timeline_notices SET read=1 WHERE user_id=?').run(userId);
   }
   questions(workId: string, viewer?: string): Question[] {
     this.shared(workId, viewer);
@@ -298,6 +319,11 @@ export class SocialStore {
       this.store.db
         .query(
           "UPDATE social_invitations SET state='cancelled',sender_contact='',recipient_contact='' WHERE (sender_id=? AND recipient_id=?) OR (sender_id=? AND recipient_id=?)",
+        )
+        .run(userId, other, other, userId);
+      this.store.db
+        .query(
+          "UPDATE timeline_joins SET state='cancelled',applicant_contact='',owner_contact='' WHERE state IN ('pending','accepted') AND ((applicant_id=? AND owner_id=?) OR (applicant_id=? AND owner_id=?))",
         )
         .run(userId, other, other, userId);
     })();
