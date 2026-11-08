@@ -73,6 +73,7 @@ export type TimelineView = {
   filter: 'all' | 'recruit';
   role?: string;
   compose: 'progress' | 'recruit';
+  prefill?: { title?: string; url?: string; deadline?: string; roles?: string };
 };
 const query = (v: Partial<TimelineView>) => {
   const q = new URLSearchParams();
@@ -428,6 +429,7 @@ function Composer({
               name="title"
               required
               maxLength={100}
+              value={view.prefill?.title}
               placeholder="活動名"
               aria-label="活動名"
             />
@@ -445,11 +447,23 @@ function Composer({
               name="roles"
               required
               maxLength={300}
+              value={view.prefill?.roles}
               placeholder="UI設計、回路、発表"
             />
             <div class="field-pair">
-              <Field label="募集のURL（任意）" name="url" type="url" maxLength={1500} />
-              <Field label="応募締切（任意）" name="deadline" type="date" />
+              <Field
+                label="募集のURL（任意）"
+                name="url"
+                type="url"
+                maxLength={1500}
+                value={view.prefill?.url}
+              />
+              <Field
+                label="応募締切（任意）"
+                name="deadline"
+                type="date"
+                value={view.prefill?.deadline}
+              />
             </div>
             <div class="x-compose-bar">
               <span class="x-compose-hint">求める役割は8個まで指定できます。</span>

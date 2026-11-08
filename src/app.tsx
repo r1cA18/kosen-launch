@@ -289,6 +289,16 @@ export function createApp(store: Store, options: Options) {
             filter: c.req.query('filter') === 'recruit' ? 'recruit' : 'all',
             role,
             compose: c.req.query('compose') === 'recruit' ? 'recruit' : 'progress',
+            prefill: {
+              title: c.req.query('title')?.slice(0, 100),
+              url: /^https?:\/\//.test(c.req.query('url') ?? '')
+                ? c.req.query('url')!.slice(0, 1500)
+                : undefined,
+              deadline: /^\d{4}-\d{2}-\d{2}$/.test(c.req.query('deadline') ?? '')
+                ? c.req.query('deadline')
+                : undefined,
+              roles: c.req.query('roles')?.slice(0, 300),
+            },
           }}
         />
       </HomePage>,

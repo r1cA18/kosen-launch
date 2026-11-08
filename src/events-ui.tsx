@@ -292,6 +292,20 @@ export function OpportunityPage({
       <PageHeading
         title={o.title}
         description="保存した候補です。応募は公式ページで行ってください。"
+        action={
+          <a
+            class="btn btn-primary"
+            href={`/home?${new URLSearchParams({
+              compose: 'recruit',
+              title: o.title,
+              url: o.url,
+              ...(o.deadline ? { deadline: o.deadline } : {}),
+              ...(advice?.result?.role ? { roles: advice.result.role.slice(0, 300) } : {}),
+            })}`}
+          >
+            この活動の仲間を募集
+          </a>
+        }
       />
       <div class="social-stack">
         <section class="card social-card">
