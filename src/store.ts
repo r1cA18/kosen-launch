@@ -22,6 +22,12 @@ export type User = {
   grade: string;
 };
 export type Identity = { user: User; mode: 'session' | 'agent' };
+export type Profile = {
+  bio: string;
+  avatar_asset_id: string | null;
+  interests: string[];
+  links: { label: string; url: string }[];
+};
 export type Work = {
   id: string;
   owner_id: string;
@@ -69,6 +75,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS proposals(id TEXT PRIMARY KEY,work_id TEXT NOT NULL REFERENCES works(id),base_revision INTEGER NOT NULL,data TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'pending',created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id),mime TEXT NOT NULL,path TEXT NOT NULL,alt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS reactions(user_id TEXT NOT NULL REFERENCES users(id),work_id TEXT NOT NULL REFERENCES works(id),PRIMARY KEY(user_id,work_id));
+      CREATE TABLE IF NOT EXISTS profiles(user_id TEXT PRIMARY KEY REFERENCES users(id),bio TEXT NOT NULL DEFAULT '',avatar_asset_id TEXT REFERENCES assets(id),interests TEXT NOT NULL DEFAULT '[]',links TEXT NOT NULL DEFAULT '[]',updated_at TEXT NOT NULL);
     `);
   }
   close() {
@@ -80,6 +87,39 @@ export class Store {
       .get(id) as User | null;
     if (!user) throw new DomainError(401, 'ログインしてください。');
     return user;
+  }
+  profileOf(userId: string): Profile {
+    const row = this.db
+      .query('SELECT bio,avatar_asset_id,interests,links FROM profiles WHERE user_id=?')
+      .get(userId) as {
+      bio: string;
+      avatar_asset_id: string | null;
+      interests: string;
+      links: string;
+    } | null;
+    return row
+      ? { ...row, interests: JSON.parse(row.interests), links: JSON.parse(row.links) }
+      : { bio: '', avatar_asset_id: null, interests: [], links: [] };
+  }
+  updateProfile(userId: string, input: Profile) {
+    if (input.avatar_asset_id) {
+      const owner = this.db
+        .query('SELECT owner_id FROM assets WHERE id=?')
+        .get(input.avatar_asset_id) as { owner_id: string } | null;
+      if (owner?.owner_id !== userId) throw new DomainError(404, '画像が見つかりません。');
+    }
+    this.db
+      .query(
+        'INSERT INTO profiles VALUES(?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET bio=excluded.bio,avatar_asset_id=excluded.avatar_asset_id,interests=excluded.interests,links=excluded.links,updated_at=excluded.updated_at',
+      )
+      .run(
+        userId,
+        input.bio,
+        input.avatar_asset_id,
+        JSON.stringify(input.interests),
+        JSON.stringify(input.links),
+        new Date().toISOString(),
+      );
   }
   async register(input: (User & { password: string }) | (Omit<User, 'id'> & { password: string })) {
     const hash = await Bun.password.hash(input.password, { algorithm: 'argon2id' });
@@ -297,6 +337,7 @@ export class Store {
     const asset = this.db.query('SELECT * FROM assets WHERE id=?').get(id) as Asset | null;
     if (!asset) throw new DomainError(404, '画像が見つかりません。');
     if (asset.owner_id === userId) return asset;
+    if (this.db.query('SELECT user_id FROM profiles WHERE avatar_asset_id=?').get(id)) return asset;
     const visible = this.db
       .query(
         "SELECT p.work_id FROM publications p, json_each(p.data,'$.asset_ids') a WHERE a.value=? LIMIT 1",

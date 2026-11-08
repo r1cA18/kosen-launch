@@ -7,19 +7,27 @@ const linkTo = (work: Published) => `/u/${work.handle}/works/${work.work_id}`;
 const navigation = [
   ['home', '/home', 'Home'],
   ['works', '/works', 'Works'],
-  ['opportunities', '/opportunities', 'Opportunities'],
+  ['opportunities', '/opportunities', 'Events'],
   ['connections', '/connections', 'Messages'],
-  ['connect', '/settings/agents', 'Agent'],
+  ['settings', '/settings', 'Settings'],
 ] as const;
-function LogoMark() {
+function Wordmark() {
+  return <span class="wordmark">Kosen Launch</span>;
+}
+/** Profile image or the first character of the name; shared by every social surface. */
+export function Avatar({
+  name,
+  asset,
+  size = 'md',
+}: {
+  name: string;
+  asset?: string | null;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+}) {
   return (
-    <svg class="logo-mark" viewBox="0 0 48 32" aria-hidden="true">
-      <path d="M12 3.5 21.5 9v11L12 25.5 2.5 20V9Z" fill="#1f2b5c" />
-      <circle cx="12" cy="14.5" r="4" fill="#f5a524" />
-      <path d="M36 2 46 26l-10-5.5L26 26Z" fill="#3b82f6" />
-      <path d="M36 20.5 46 26H26Z" fill="#93c5fd" />
-      <rect x="2.5" y="28" width="43.5" height="2.5" rx="1.25" fill="#1f2b5c" opacity="0.18" />
-    </svg>
+    <span class={`avatar-circle avatar-${size}`} aria-hidden="true">
+      {asset ? <img src={`/assets/${asset}`} alt="" loading="lazy" /> : name.slice(0, 1)}
+    </span>
   );
 }
 function ArrowIcon() {
@@ -64,7 +72,7 @@ export function Layout({
         </a>
         <header class="site-header">
           <a class="site-home" href={user ? '/home' : '/'} aria-label="ホームへ戻る">
-            <LogoMark />
+            <Wordmark />
           </a>
           {user ? (
             <div class="site-menu" data-site-menu>
@@ -130,7 +138,7 @@ export function LandingPage() {
         <div class="hero-content text-center">
           <div class="landing-copy">
             <span class="landing-logo">
-              <LogoMark />
+              <Wordmark />
             </span>
             <h1>Kosen Launch</h1>
             <p>
@@ -180,7 +188,7 @@ export function AuthPage({ register = false, error }: { register?: boolean; erro
       <section class="auth-shell">
         <div class="card glass-card auth-card">
           <a class="auth-logo" href="/" aria-label="トップへ戻る">
-            <LogoMark />
+            <Wordmark />
           </a>
           <h1>{register ? 'Sign up' : 'Log in'}</h1>
           <div role="tablist" class="tabs tabs-box auth-tabs">

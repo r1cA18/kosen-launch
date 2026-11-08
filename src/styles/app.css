@@ -2544,3 +2544,54 @@
     }
   }
 }
+
+/* foundation: wordmark and avatar */
+@layer utilities {
+  .wordmark {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .site-home {
+    width: auto;
+    height: 56px;
+    padding: 0 18px;
+    border-radius: 999px;
+  }
+  .landing-logo .wordmark {
+    display: none;
+  }
+  .auth-logo .wordmark {
+    font-size: 15px;
+  }
+  .avatar-circle {
+    --avatar: 40px;
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: var(--avatar);
+    height: var(--avatar);
+    overflow: hidden;
+    border-radius: 50%;
+    background: #e8ebf2;
+    color: #334155;
+    font-size: calc(var(--avatar) * 0.42);
+    font-weight: 700;
+  }
+  .avatar-sm {
+    --avatar: 32px;
+  }
+  .avatar-lg {
+    --avatar: 64px;
+  }
+  .avatar-xl {
+    --avatar: 128px;
+  }
+  .avatar-circle img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}

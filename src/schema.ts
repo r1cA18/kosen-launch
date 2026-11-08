@@ -98,3 +98,18 @@ export const authoringRules = {
   ],
   schema: z.toJSONSchema(workSchema),
 };
+
+export const profileSchema = z
+  .object({
+    bio: text(300),
+    avatar_asset_id: z.string().uuid().nullable(),
+    interests: labels,
+    links: z
+      .array(
+        z
+          .object({ label: text(40).min(1), url: z.url({ protocol: /^https?$/ }).max(300) })
+          .strict(),
+      )
+      .max(6),
+  })
+  .strict();
