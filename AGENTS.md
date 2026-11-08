@@ -15,7 +15,7 @@
 - `bun run dev`: ローカル開発サーバー
 - `bun run dev:edit`: 画面上で文言を直してsrc/へ反映するUI編集付きの開発サーバー
 - `bun run check`: TypeScriptの型確認
-- `bun test`: APIとMCPの検証
+- `bun run test`: APIとMCPと画面の検証
 - `bun run build`: CSSとフォントとサーバーとMCPのビルド
 - `bun run mcp`: エージェント用stdio MCP
 
