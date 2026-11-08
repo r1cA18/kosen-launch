@@ -2334,7 +2334,7 @@
   }
   .site-menu.is-open {
     width: min(300px, calc(100vw - 32px));
-    height: 418px;
+    height: 396px;
   }
   .site-menu-glass {
     width: 100%;
@@ -4778,5 +4778,215 @@
   }
   .rail-card li .quiet {
     font-size: 12px;
+  }
+}
+
+/* compact information architecture */
+@layer utilities {
+  .ui-page {
+    padding-top: 112px;
+  }
+  .page-heading {
+    margin-bottom: 32px;
+  }
+  .page-heading h1 {
+    font-size: clamp(30px, 4vw, 44px);
+    line-height: 1.15;
+  }
+  .page-heading p {
+    margin-top: 8px;
+  }
+  .compact-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .compact-heading h1 {
+    font-size: clamp(30px, 4vw, 44px);
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    line-height: 1.15;
+  }
+  .next {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .next-event {
+    padding: 26px 28px;
+    display: grid;
+    gap: 10px;
+  }
+  .next-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #3b82f6;
+  }
+  .next-event h2 {
+    font-size: 24px;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    line-height: 1.35;
+  }
+  .next-meta {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .next-reason {
+    font-size: 14px;
+    line-height: 1.85;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .next-role {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 14px;
+  }
+  .next-role span {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .next-actions,
+  .next-inline {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .next-side {
+    display: grid;
+    gap: 16px;
+  }
+  .next-box {
+    padding: 18px 20px;
+    display: grid;
+    gap: 12px;
+  }
+  .next-box-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .next-box-head h2 {
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .next-box .count {
+    display: grid;
+    place-items: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .next-box ul {
+    display: grid;
+    gap: 14px;
+    list-style: none;
+    padding: 0;
+  }
+  .next-box li {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .next-box li a {
+    font-weight: 600;
+  }
+  .next-box li .quiet {
+    font-size: 12px;
+  }
+  .btn-xs {
+    height: 28px;
+    min-height: 28px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  .home-feed {
+    margin-top: 40px;
+    max-width: 640px;
+  }
+  .feed-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .feed-head h2 {
+    font-size: 22px;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+  }
+  .composer-toggle {
+    margin: 12px 0;
+  }
+  .composer-toggle > summary {
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px dashed #cbd5e1;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .composer-toggle > summary::-webkit-details-marker {
+    display: none;
+  }
+  .composer-toggle[open] > summary {
+    margin-bottom: 12px;
+  }
+  .site-menu-account {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+  }
+  .site-menu-account .account-link {
+    display: grid;
+    min-width: 0;
+    line-height: 1.35;
+  }
+  .site-menu-account .account-link strong {
+    color: var(--ink);
+    font-size: 14px;
+  }
+  .site-menu-account .account-link span {
+    font-size: 12px;
+  }
+  .site-menu-account > a:not(.account-link) {
+    padding: 0 10px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+  }
+  .site-menu-account > a:not(.account-link):hover {
+    background: #e8ebf2;
+  }
+  @media (max-width: 860px) {
+    .next {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 640px) {
+    .ui-page {
+      padding-top: 96px;
+    }
   }
 }

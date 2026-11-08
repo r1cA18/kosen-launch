@@ -42,6 +42,7 @@ import { applyAllFixes, applyFix, isEditableField, replaceAll } from './console'
 import { applySchema, type UiEditor } from './ui-editor';
 import { EditorPage } from './editor-ui';
 import { WelcomePage } from './welcome-ui';
+import { NextSection } from './home-ui';
 import { layoutOf, withLayout } from './layout';
 
 type Env = { Variables: { identity: Identity | null } };
@@ -267,26 +268,28 @@ export function createApp(store: Store, options: Options) {
     return c.html(
       <HomePage
         user={user}
-        rail={
-          <>
-            <DraftsRail works={works} proposals={proposals} />
-            <EventsRail items={opportunities.forYou(user.id, 3)} />
-          </>
-        }
-        setupProfile={
-          !profile.bio &&
-          !profile.avatar_asset_id &&
-          !profile.interests.length &&
-          !profile.links.length
+        setupProfile={!profile.bio && !profile.interests.length}
+        next={
+          <NextSection
+            event={opportunities.forYou(user.id, 1)[0]}
+            joins={timeline.pendingJoins(user.id)}
+            invitations={social
+              .invitations(user.id)
+              .filter((i) => i.recipient_id === user.id && i.state === 'pending')}
+            drafts={works.filter(
+              (w) => (!w.published_revision && w.revision === 1) || proposals[w.id] > 0,
+            )}
+            proposals={proposals}
+          />
         }
       >
         <Timeline
           user={user}
           timeline={timeline}
-          works={store.works(user.id)}
-          unread={social.notices(user.id).filter((n) => !n.read).length}
+          works={works}
+          unread={0}
           view={{
-            filter: c.req.query('filter') === 'recruit' ? 'recruit' : 'all',
+            filter: c.req.query('filter') === 'all' ? 'all' : 'recruit',
             role,
             compose: c.req.query('compose') === 'recruit' ? 'recruit' : 'progress',
             prefill: {
@@ -672,7 +675,7 @@ export function createApp(store: Store, options: Options) {
     );
   });
   const messagesBack = (value: unknown) =>
-    /^\/connections(\?[A-Za-z0-9=&%_.-]*)?$/.test(String(value)) ? String(value) : null;
+    /^\/(connections|home)(\?[A-Za-z0-9=&%_.-]*)?$/.test(String(value)) ? String(value) : null;
   app.post('/social/questions', async (c) => {
     const { user } = requireUser(c, true),
       b = await c.req.parseBody();

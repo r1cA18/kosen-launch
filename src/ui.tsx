@@ -9,8 +9,7 @@ const navigation = [
   ['home', '/home', 'Home'],
   ['works', '/works', 'Works'],
   ['opportunities', '/opportunities', 'Events'],
-  ['connections', '/connections', 'Messages'],
-  ['settings', '/settings', 'Settings'],
+  ['connections', '/connections', 'Inbox'],
 ] as const;
 function Wordmark() {
   return <span class="wordmark">Kosen Launch</span>;
@@ -110,7 +109,13 @@ export function Layout({
                     </a>
                   ))}
                   <div class="site-menu-account">
-                    <a href={`/u/${user.handle}`}>@{user.handle}</a>
+                    <a class="account-link" href={`/u/${user.handle}`}>
+                      <strong>{user.display_name}</strong>
+                      <span>@{user.handle}</span>
+                    </a>
+                    <a href="/settings" aria-current={active === 'settings' ? 'page' : undefined}>
+                      設定
+                    </a>
                     <form method="post" action="/logout">
                       <button type="submit">ログアウト</button>
                     </form>
@@ -448,42 +453,36 @@ export function DraftsRail({
 }
 export function HomePage({
   user,
+  next,
   children,
-  rail,
   setupProfile = false,
 }: {
   user: User;
+  next: Child;
   children: Child;
-  rail?: Child;
   setupProfile?: boolean;
 }) {
   return (
     <Layout title="Home" user={user}>
-      <PageHeading
-        title="Home"
-        action={
-          <a class="ui-action ui-action-plain" href="/settings?tab=agent">
-            作品を追加
+      <header class="compact-heading">
+        <h1>Home</h1>
+        <a class="btn btn-outline btn-sm" href="/settings?tab=agent">
+          作品を追加
+        </a>
+      </header>
+      {setupProfile && (
+        <section class="card x-setup">
+          <div>
+            <h2>関心を設定してください</h2>
+            <p>関心と作品をもとに、あなた向けのイベントが毎日届きます。</p>
+          </div>
+          <a class="btn btn-primary btn-sm" href="/settings?tab=profile">
+            設定する
           </a>
-        }
-      />
-      <div class={rail ? 'x-home has-rail' : 'x-home'}>
-        <div class="x-main">
-          {setupProfile && (
-            <section class="card x-setup">
-              <div>
-                <h2>プロフィールを設定</h2>
-                <p>アイコンと自己紹介と関心を登録すると、投稿やメッセージに表示されます。</p>
-              </div>
-              <a class="btn btn-primary btn-sm" href="/settings">
-                設定する
-              </a>
-            </section>
-          )}
-          {children}
-        </div>
-        {rail && <aside class="x-rail">{rail}</aside>}
-      </div>
+        </section>
+      )}
+      {next}
+      <div class="home-feed">{children}</div>
     </Layout>
   );
 }

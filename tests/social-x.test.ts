@@ -94,7 +94,7 @@ afterEach(() => {
 });
 
 test('Settingsでプロフィールと表示名とアイコンを保存し公開ページに表示', async () => {
-  expect(await (await get(owner, '/home')).text()).toContain('プロフィールを設定');
+  expect(await (await get(owner, '/home')).text()).toContain('関心を設定してください');
   const saved = await post(
     owner,
     '/settings/profile',
@@ -130,10 +130,13 @@ test('Settingsでプロフィールと表示名とアイコンを保存し公開
   expect(page).not.toContain('PRIVATE_');
   expect(page).not.toContain('owner@example.test');
   expect(await (await get(owner, '/u/owner')).text()).toContain('プロフィールを編集');
-  expect(await (await get(peer, '/u/owner')).text()).toContain('/connections?with=owner');
-  expect(await (await get(owner, '/home')).text()).not.toContain('プロフィールを設定');
+  // Profiles no longer offer an open-ended message button.
+  expect(await (await get(peer, '/u/owner')).text()).not.toContain('/connections?with=owner');
+  expect(await (await get(owner, '/home')).text()).not.toContain('関心を設定してください');
   tl.progress(owner.id, { body: 'アイコン付きの投稿' });
-  expect(await (await get(peer, '/home')).text()).toContain(`/assets/${profile.avatar_asset_id}`);
+  expect(await (await get(peer, '/home?filter=all')).text()).toContain(
+    `/assets/${profile.avatar_asset_id}`,
+  );
   const removed = await post(
     owner,
     '/settings/profile',
@@ -241,7 +244,8 @@ test('Messagesは相手ごとに質問と誘いと参加希望をまとめ他人
 
   const listHtml = await (await get(owner, '/connections')).text();
   expect(listHtml).toContain('/connections?with=peer');
-  expect(listHtml).toContain('会話を選んでください');
+  // The newest conversation opens by default.
+  expect(listHtml).toContain('&lt;b&gt;教えて');
   const html = await (await get(owner, '/connections?with=peer')).text();
   expect(html).toContain('&lt;b&gt;教えて');
   expect(html).toContain('制作物を紹介するLT');
@@ -256,7 +260,8 @@ test('Messagesは相手ごとに質問と誘いと参加希望をまとめ他人
   expect(answered.headers.get('location')).toBe('/connections?with=peer');
   const peerView = await (await get(peer, '/connections?with=owner')).text();
   expect(peerView).toContain('回路を担当しました。');
-  expect(peerView).toContain('action="/social/questions"');
+  // Inbox does not offer an open-ended question form; new contact starts from events or recruits.
+  expect(peerView).not.toContain('action="/social/questions"');
   const sent = await post(peer, '/social/questions', {
     work_id: workId,
     body: '続けて質問です。',
@@ -286,9 +291,7 @@ test('Messagesは相手ごとに質問と誘いと参加希望をまとめ他人
 
   social.block(owner.id, peer.id);
   expect(tl.conversations(owner.id).some((c) => c.person.id === peer.id)).toBe(false);
-  expect(await (await get(owner, '/connections?with=peer')).text()).toContain(
-    '会話を選んでください',
-  );
+  expect(await (await get(owner, '/connections?with=peer')).text()).toContain('まだ届いていません');
 });
 
 test('通知タブは種類と送り手と時刻を表示し既読にできる', async () => {
