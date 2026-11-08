@@ -316,7 +316,7 @@ export class Opportunities {
       const response = await (this.claude.fetch ?? fetch)('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         redirect: 'error',
-        signal: AbortSignal.timeout(25000),
+        signal: AbortSignal.timeout(60000),
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': this.claude.key,

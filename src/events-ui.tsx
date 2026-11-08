@@ -356,7 +356,12 @@ export function OpportunityPage({
               AIの接続は未設定です。機会の保存と手動の準備は利用できます。
             </p>
           )}
-          <form method="post" action={`/opportunities/${id}/recommend`} class="social-form">
+          <form
+            method="post"
+            action={`/opportunities/${id}/recommend`}
+            class="social-form"
+            data-busy="準備案を作成しています（20秒ほどかかります）"
+          >
             <fieldset>
               <legend>使いたい作品・経験（1〜5件）</legend>
               {works.map((w) => (

@@ -24,3 +24,18 @@ for (const form of document.querySelectorAll('[data-confirm-gate]')) {
   check.addEventListener('change', sync);
   sync();
 }
+
+// Long-running forms: show progress and prevent a second submission.
+document.addEventListener('submit', (event) => {
+  const form = event.target.closest('form[data-busy]');
+  if (!form || event.defaultPrevented) return;
+  const button = form.querySelector('button[type=submit], button:not([type])');
+  if (!button) return;
+  if (form.dataset.sending) {
+    event.preventDefault();
+    return;
+  }
+  form.dataset.sending = '1';
+  button.disabled = true;
+  button.textContent = form.dataset.busy;
+});
