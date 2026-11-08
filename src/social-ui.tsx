@@ -230,6 +230,13 @@ function Bubble({ m, user, person }: { m: Message; user: User; person: Person })
         <Time at={m.at} />
       </li>
     );
+  if (m.type === 'direct')
+    return (
+      <li class={`x-msg ${mine ? 'is-mine' : ''}`}>
+        <p class="x-bubble preserve-lines">{m.body}</p>
+        <Time at={m.at} />
+      </li>
+    );
   return (
     <li class={`x-msg ${mine ? 'is-mine' : ''}`}>
       <a class="x-msg-context" href={m.work_href}>
@@ -278,9 +285,30 @@ function Composer({
         </div>
       </form>
     );
+  if (timeline.connected(user.id, person.id))
+    return (
+      <form class="x-dm-composer" method="post" action={`/social/direct/${person.handle}`}>
+        <input type="hidden" name="back" value={back} />
+        <p class="x-dm-hint">このメッセージは二人にだけ表示されます。</p>
+        <div class="x-dm-input">
+          <textarea
+            class="x-compose-text"
+            name="body"
+            rows={1}
+            maxLength={2000}
+            required
+            aria-label="メッセージ"
+            placeholder="メッセージを入力"
+          />
+          <button class="x-send" aria-label="送信">
+            <Icon name="send" />
+          </button>
+        </div>
+      </form>
+    );
   return (
     <p class="x-dm-composer x-dm-hint">
-      誘いと参加希望への返事は上のカードから行えます。新しく声をかけるときは、イベントの詳細か仲間募集から送ってください。
+      誘いか参加希望を受け入れると、ここでメッセージを送り合えます。新しく声をかけるときは、イベントの詳細か仲間募集から送ってください。
     </p>
   );
 }

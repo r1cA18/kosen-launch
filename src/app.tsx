@@ -730,6 +730,14 @@ export function createApp(store: Store, options: Options) {
   });
   const messagesBack = (value: unknown) =>
     /^\/(connections|home)(\?[A-Za-z0-9=&%_.-]*)?$/.test(String(value)) ? String(value) : null;
+  app.post('/social/direct/:handle', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody();
+    const other = store.publicUser(c.req.param('handle'));
+    if (!other) throw new DomainError(404, '相手が見つかりません。Inboxを確認してください。');
+    timeline.sendDirect(user.id, other.id, b.body);
+    return c.redirect(messagesBack(b.back) ?? `/connections?with=${other.handle}`, 303);
+  });
   app.post('/social/questions', async (c) => {
     const { user } = requireUser(c, true),
       b = await c.req.parseBody();

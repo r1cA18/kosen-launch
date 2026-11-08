@@ -90,6 +90,7 @@ export type Message = { at: string; order: number; from: string } & (
     }
   | { type: 'invitation'; invitation: Invitation }
   | { type: 'join'; join: Join; post_title: string }
+  | { type: 'direct'; body: string }
 );
 export type ConversationSummary = {
   person: Person;
@@ -104,7 +105,48 @@ export class TimelineStore {
   constructor(
     public store: Store,
     public social: SocialStore,
-  ) {}
+  ) {
+    store.db.exec(
+      'CREATE TABLE IF NOT EXISTS direct_messages(id TEXT PRIMARY KEY,sender_id TEXT NOT NULL REFERENCES users(id),recipient_id TEXT NOT NULL REFERENCES users(id),body TEXT NOT NULL,created_at TEXT NOT NULL); CREATE INDEX IF NOT EXISTS direct_messages_pair ON direct_messages(sender_id,recipient_id)',
+    );
+  }
+  /** Private messages open only after one side accepted the other's invitation or join request. */
+  connected(a: string, b: string) {
+    if (a === b || this.social.blocked(a, b)) return false;
+    return !!(
+      this.store.db
+        .query(
+          "SELECT 1 FROM social_invitations WHERE state='accepted' AND ((sender_id=? AND recipient_id=?) OR (sender_id=? AND recipient_id=?))",
+        )
+        .get(a, b, b, a) ||
+      this.store.db
+        .query(
+          "SELECT 1 FROM timeline_joins WHERE state='accepted' AND ((applicant_id=? AND owner_id=?) OR (applicant_id=? AND owner_id=?))",
+        )
+        .get(a, b, b, a)
+    );
+  }
+  sendDirect(userId: string, otherId: string, input: unknown) {
+    const body = z.string().trim().min(1).max(2000).parse(input);
+    if (!this.connected(userId, otherId))
+      throw new DomainError(403, '誘いか参加希望を受け入れた相手にだけメッセージを送れます。');
+    const recent = this.store.db
+      .query('SELECT count(*) n FROM direct_messages WHERE sender_id=? AND created_at>?')
+      .get(userId, new Date(Date.now() - 3600_000).toISOString()) as { n: number };
+    if (recent.n >= 120)
+      throw new DomainError(429, 'メッセージの回数が多くなっています。1時間後に試してください。');
+    this.store.db
+      .query('INSERT INTO direct_messages VALUES(?,?,?,?,?)')
+      .run(randomUUID(), userId, otherId, body, new Date().toISOString());
+    const sender = this.store.user(userId);
+    this.social.timelineNotice(
+      otherId,
+      userId,
+      'direct',
+      `${sender.display_name}さんからメッセージが届きました。`,
+      `/connections?with=${sender.handle}`,
+    );
+  }
   private published(workId: string | null, authorId: string): Published | null {
     if (!workId) return null;
     const row = this.store.db
@@ -296,6 +338,28 @@ export class TimelineStore {
       out.push({ ...base, type: 'question', order: 0, from: q.author_id, body: q.body });
       if (q.answer)
         out.push({ ...base, type: 'answer', order: 1, from: q.owner_id, body: q.answer });
+    }
+    const directs = this.store.db
+      .query(
+        'SELECT sender_id,recipient_id,body,created_at FROM direct_messages WHERE sender_id=? OR recipient_id=? ORDER BY created_at DESC LIMIT 500',
+      )
+      .all(viewer, viewer) as {
+      sender_id: string;
+      recipient_id: string;
+      body: string;
+      created_at: string;
+    }[];
+    for (const d of directs) {
+      const other = d.sender_id === viewer ? d.recipient_id : d.sender_id;
+      if (this.social.blocked(viewer, other)) continue;
+      out.push({
+        type: 'direct',
+        body: d.body,
+        at: d.created_at,
+        order: 2,
+        from: d.sender_id,
+        other,
+      });
     }
     for (const invitation of this.social.invitations(viewer))
       out.push({
