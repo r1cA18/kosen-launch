@@ -4,6 +4,31 @@ import { kindLabels, statusLabels, type WorkData } from './schema';
 
 type DisplayWork = Omit<WorkData, 'sources'>;
 const linkTo = (work: Published) => `/u/${work.handle}/works/${work.work_id}`;
+const navigation = [
+  ['home', '/home', 'Home'],
+  ['works', '/works', 'Works'],
+  ['opportunities', '/opportunities', 'Opportunities'],
+  ['connections', '/connections', 'Messages'],
+  ['connect', '/settings/agents', 'Agent'],
+] as const;
+function LogoMark() {
+  return (
+    <svg class="logo-mark" viewBox="0 0 48 32" aria-hidden="true">
+      <path d="M0 6 6 0v26l-6 6Z" fill="#8484ad" />
+      <path d="M6 0h12v26H6Z" fill="#52b8bb" />
+      <path d="M0 32 6 26h12l-6 6Z" fill="#34345f" />
+      <path d="M22 0 42 26H22Z" fill="#e57f84" />
+      <path d="M22 26h20l-6 6H16Z" fill="#e3b5b5" />
+    </svg>
+  );
+}
+function ArrowIcon() {
+  return (
+    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4" />
+    </svg>
+  );
+}
 export function Layout({
   title,
   children,
@@ -34,117 +59,81 @@ export function Layout({
         <a class="skip-link" href="#main">
           本文へ移動
         </a>
-        {user ? (
-          <div class="app-shell">
-            <aside class="sidebar">
-              <a class="brand" href="/home">
-                <span class="brand-mark">K</span>
-                <span>Kosen Launch</span>
-              </a>
-              <p class="sidebar-caption">制作の、その先へ。</p>
-              <nav aria-label="メインナビゲーション">
-                <ul class="menu sidebar-menu">
-                  {[
-                    ['home', '/home', 'ホーム'],
-                    ['works', '/works', '作品'],
-                    ['opportunities', '/opportunities', '機会'],
-                    ['connections', '/connections', '交流'],
-                    ['connect', '/settings/agents', 'エージェント接続'],
-                  ].map(([key, href, label]) => (
+        <header class="site-header">
+          <a class="site-logo" href={user ? '/home' : '/'} aria-label="Kosen Launch">
+            <LogoMark />
+          </a>
+          {user ? (
+            <details class="site-menu">
+              <summary aria-label="メニュー">
+                <span class="menu-lines" />
+              </summary>
+              <nav class="menu-panel" aria-label="メインナビゲーション">
+                <ul>
+                  {navigation.map(([key, href, label]) => (
                     <li>
                       <a href={href} aria-current={active === key ? 'page' : undefined}>
                         {label}
+                        <ArrowIcon />
                       </a>
                     </li>
                   ))}
                 </ul>
-              </nav>
-              <a class="portfolio-link" href={`/u/${user.handle}`}>
-                自分の公開ページを見る
-              </a>
-              <div class="sidebar-user">
-                <span class="profile-avatar">{user.display_name.slice(0, 1)}</span>
-                <div>
-                  <strong>{user.display_name}</strong>
-                  <span>@{user.handle}</span>
+                <div class="menu-account">
+                  <span class="profile-avatar">{user.display_name.slice(0, 1)}</span>
+                  <div>
+                    <strong>{user.display_name}</strong>
+                    <a href={`/u/${user.handle}`}>@{user.handle}</a>
+                  </div>
+                  <form method="post" action="/logout">
+                    <button class="ui-action ui-action-quiet" type="submit">
+                      ログアウト
+                    </button>
+                  </form>
                 </div>
-                <form method="post" action="/logout">
-                  <button class="btn btn-ghost btn-sm" type="submit">
-                    ログアウト
-                  </button>
-                </form>
-              </div>
-            </aside>
-            <main id="main" class="workspace">
-              {children}
-            </main>
-          </div>
-        ) : (
-          <>
-            <header class="public-header">
-              <a class="brand" href="/">
-                <span class="brand-mark">K</span>Kosen Launch
-              </a>
-              <a href={publicViewer ? '/home' : '/login'}>
-                {publicViewer ? 'ホームへ戻る' : 'ログイン'}
-              </a>
-            </header>
-            <main id="main">{children}</main>
-          </>
-        )}
+              </nav>
+            </details>
+          ) : (
+            <a class="ui-action ui-action-plain" href={publicViewer ? '/home' : '/login'}>
+              {publicViewer ? 'Home' : 'ログイン'}
+            </a>
+          )}
+        </header>
+        <main id="main" class={user ? 'ui-page' : 'ui-public'}>
+          {children}
+        </main>
+        <footer class="site-footer">© 2026 Kosen Launch</footer>
       </body>
     </html>
   );
 }
 export function AuthPage({ register = false, error }: { register?: boolean; error?: string }) {
   return (
-    <Layout title={register ? 'はじめる' : 'ログイン'}>
+    <Layout title={register ? 'アカウント作成' : 'ログイン'}>
       <div class="auth-layout">
         <section class="auth-story">
-          <p class="plain-label">高専での制作を、次の活動へ</p>
-          <h1>
-            つくったものから、
-            <br />
-            外につながる。
-          </h1>
+          <h1>Kosen Launch</h1>
           <p class="lead">
-            授業の制作も、夢中になった個人開発も。
-            <br />
-            あなたの経験が伝わるページを、一緒に整えましょう。
+            高専での制作物を作品ページにまとめるサービスです。コーディングエージェントが制作フォルダから下書きを作成し、内容を確認してから公開します。
           </p>
-          <div class="journey">
-            <div>
+          <ol class="journey">
+            <li>
               <span>1</span>
-              <p>
-                エージェントに
-                <br />
-                制作フォルダを渡す
-              </p>
-            </div>
-            <div>
+              <p>エージェントが制作フォルダから下書きを作成</p>
+            </li>
+            <li>
               <span>2</span>
-              <p>
-                下書きを確認して
-                <br />
-                自分のページへ
-              </p>
-            </div>
-            <div>
+              <p>担当範囲と本文を確認して公開</p>
+            </li>
+            <li>
               <span>3</span>
-              <p>
-                作品を見せて
-                <br />
-                次の接点をつくる
-              </p>
-            </div>
-          </div>
-          <p class="quiet">企画・デザイン・発表の経験も、あなたの作品です。</p>
+              <p>制作ログの投稿と仲間募集への参加</p>
+            </li>
+          </ol>
+          <p class="quiet">企画・デザイン・発表など、コード以外の担当も記録できます。</p>
         </section>
         <section class="card auth-panel">
-          <h2>{register ? 'アカウントを作成' : 'おかえりなさい'}</h2>
-          <p>
-            {register ? '制作を残す場所から、始めましょう。' : '作品の続きから、始めましょう。'}
-          </p>
+          <h2>{register ? 'Sign up' : 'Log in'}</h2>
           {error && (
             <p class="alert alert-error" role="alert">
               {error}
@@ -177,24 +166,24 @@ export function AuthPage({ register = false, error }: { register?: boolean; erro
             />
             {register && (
               <details class="school-details">
-                <summary>学校の情報を追加する（任意）</summary>
+                <summary>学校の情報（任意）</summary>
                 <Field label="学校" name="school" maxLength={120} />
                 <div class="field-pair">
                   <Field label="学科" name="department" maxLength={100} />
                   <Field label="学年" name="grade" maxLength={30} />
                 </div>
-                <p class="quiet">学校の情報は公開ページには表示されません。</p>
+                <p class="quiet">学校の情報は公開ページに表示されません。</p>
               </details>
             )}
             <button class="btn btn-primary full" type="submit">
-              {register ? '登録して始める' : 'ログイン'}
+              {register ? '登録' : 'ログイン'}
             </button>
           </form>
           <p class="auth-switch">
             {register ? (
-              <a href="/login">すでに登録している方はこちら</a>
+              <a href="/login">登録済みの方はログイン</a>
             ) : (
-              <a href="/register">アカウントを作成する</a>
+              <a href="/register">アカウントを作成</a>
             )}
           </p>
         </section>
@@ -308,32 +297,33 @@ export function HomePage({
   works: Work[];
   children: Child;
 }) {
+  const drafts = works.filter((w) => !w.published_revision).length;
   return (
-    <Layout title="ホーム" user={user}>
+    <Layout title="Home" user={user}>
       <PageHeading
-        title="制作の続きが、ここに。"
-        description="制作の進み具合を見せて、仲間や次の活動につなげましょう。"
+        title="Home"
         action={
-          <a class="btn btn-outline" href="/settings/agents">
-            作品を追加する
+          <a class="ui-action ui-action-plain" href="/settings/agents">
+            作品を追加
           </a>
         }
       />
-      <section class="continue-panel">
-        <div>
-          <span class="status-dot" />
-          自分の続き<h2>{works.length ? '作品を、伝わるかたちに。' : '最初の作品を、ここへ。'}</h2>
+      <section class="status-strip">
+        {works.length ? (
           <p>
-            {works.length
-              ? '下書きを確認して、あなたが担当したことや工夫を伝えましょう。'
-              : '普段のエージェントと接続すると、制作フォルダから作品の下書きを届けられます。'}
+            作品 <strong>{works.length}</strong> 件（下書き {drafts} 件・公開中{' '}
+            {works.length - drafts} 件）
           </p>
-        </div>
+        ) : (
+          <p>
+            作品はまだありません。エージェントを接続すると、制作フォルダから下書きを作成できます。
+          </p>
+        )}
         <a
-          class="btn btn-primary"
+          class="ui-action ui-action-primary"
           href={works.length ? `/works/${works[0].id}` : '/settings/agents'}
         >
-          {works.length ? '最近の下書きを開く' : 'エージェントを接続する'}
+          {works.length ? '最新の下書きを開く' : 'エージェントを接続'}
         </a>
       </section>
       {children}
@@ -342,15 +332,14 @@ export function HomePage({
 }
 export function WorksPage({ user, works }: { user: User; works: Work[] }) {
   return (
-    <Layout title="作品" user={user} active="works">
+    <Layout title="Works" user={user} active="works">
       <PageHeading
-        title="自分の作品"
-        description="小さな試作も、授業での工夫も。あなたの経験として残せます。"
+        title="Works"
         action={
           <div class="actions">
             {works.length > 0 && (
               <a class="btn btn-outline" href="/works/text">
-                表記をまとめて直す
+                表記の一括置換
               </a>
             )}
             <a class="btn btn-primary" href="/settings/agents">
@@ -372,11 +361,11 @@ export function WorksPage({ user, works }: { user: User; works: Work[] }) {
         </div>
       ) : (
         <Empty
-          title="最初の作品を追加しましょう"
+          title="作品はまだありません"
           href="/settings/agents"
-          label="エージェントを接続する"
+          label="エージェントを接続"
         >
-          制作したもののフォルダを、普段使っているエージェントへ渡してください。
+          エージェントを接続すると、制作フォルダから作品の下書きを作成できます。
         </Empty>
       )}
     </Layout>
@@ -457,15 +446,15 @@ export function WorkEditor({
   return (
     <Layout title={d.title} user={user} active="works">
       <PageHeading
-        title="作品を整える"
+        title="Edit"
         description={`編集版 ${work.revision} / ${work.published_revision ? '公開版 ' + work.published_revision : 'まだ公開されていません'}`}
         action={
           <div class="actions">
             <a class="btn btn-outline" href={`/works/${work.id}/console`}>
-              見た目のまま編集
+              プレビューで編集
             </a>
             <a class="btn btn-primary" href={`/works/${work.id}/review`}>
-              公開前に確認する
+              公開前の確認
             </a>
           </div>
         }
@@ -617,9 +606,9 @@ export function WorkEditor({
 }
 export function ReviewPage({ user, work, store }: { user: User; work: Work; store: Store }) {
   return (
-    <Layout title="公開前の確認" user={user} active="works">
+    <Layout title="Review" user={user} active="works">
       <PageHeading
-        title="公開前の確認"
+        title="Review"
         description="本人の担当と結果に誤りがないか確認してください。"
         action={
           <a class="btn btn-outline" href={`/works/${work.id}`}>
@@ -699,10 +688,10 @@ export function ConnectPage({
     2,
   );
   return (
-    <Layout title="エージェント接続" user={user} active="connect">
+    <Layout title="Agent" user={user} active="connect">
       <PageHeading
-        title="エージェント接続"
-        description="制作フォルダを読み取るエージェントと、あなたのポートフォリオをつなぎます。"
+        title="Agent"
+        description="コーディングエージェントにSkillとMCPを設定し、制作フォルダから作品の下書きを作成します。"
       />
       <div class="connect-layout">
         <section class="card setup-step">
@@ -713,7 +702,7 @@ export function ConnectPage({
             <Field
               label="接続名"
               name="label"
-              placeholder="普段使うエージェント"
+              placeholder="例：Claude Code"
               required
               maxLength={80}
             />
@@ -750,7 +739,7 @@ export function ConnectPage({
         </section>
         <section class="card setup-step">
           <span class="step-number">3</span>
-          <h2>制作フォルダを渡す</h2>
+          <h2>下書きを依頼する</h2>
           <blockquote>
             このフォルダからKosen
             Launchのポートフォリオ下書きを作って。自分の担当が不明なところは質問して。
