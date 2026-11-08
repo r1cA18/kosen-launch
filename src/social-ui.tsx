@@ -23,10 +23,10 @@ export function Conversation({
   return (
     <section id="conversation" class="conversation">
       <div class="section-heading">
-        <h2>この作品から、話してみる</h2>
+        <h2>Questions</h2>
         <span>{questions.length}件の質問</span>
       </div>
-      <p>工夫したところや次に試したいことを聞いてみましょう。質問と返信は公開されます。</p>
+      <p>作品について質問できます。質問と返信は公開されます。</p>
       {user ? (
         <form method="post" action={`/social/works/${work.work_id}/questions`} class="social-form">
           <label class="field">
@@ -44,7 +44,7 @@ export function Conversation({
         </form>
       ) : (
         <a class="btn btn-outline" href="/login">
-          ログインして話しかける
+          ログインして質問する
         </a>
       )}
       <div class="social-stack">
@@ -104,10 +104,8 @@ export function Conversation({
       </div>
       {user && user.id !== owner && (
         <section class="card social-card invite-panel">
-          <h3>一緒に取り組むきっかけをつくる</h3>
-          <p>
-            イベントやハッカソンを決めて、役割と最初の一歩を添えて誘えます。内容は相手にだけ届きます。
-          </p>
+          <h3>活動に誘う</h3>
+          <p>イベント、役割、最初の一歩を指定して誘えます。内容は相手にだけ届きます。</p>
           <form
             method="post"
             action={`/social/works/${work.work_id}/invitations`}
@@ -130,7 +128,7 @@ export function Conversation({
               <Field label="相手に相談したい役割" name="recipient_role" required maxLength={200} />
             </div>
             <Field label="最初の一歩・予定" name="next_step" required maxLength={500} />
-            <button class="btn btn-primary">この内容で誘う</button>
+            <button class="btn btn-primary">誘う</button>
           </form>
         </section>
       )}
@@ -157,10 +155,7 @@ export function ConnectionsPage({
     blocks = social.blocks(user.id);
   return (
     <Layout title="交流" user={user} active="connections">
-      <PageHeading
-        title="作品から生まれた接点"
-        description="質問への返事や誘いを確認して、次の活動につなげましょう。"
-      />
+      <PageHeading title="Messages" description="質問への返信と誘いを確認できます。" />
       {notice && (
         <p role="status" class="alert">
           {notice}
@@ -168,7 +163,7 @@ export function ConnectionsPage({
       )}
       <section class="social-section">
         <div class="section-heading">
-          <h2>お知らせ</h2>
+          <h2>Notifications</h2>
           <form method="post" action="/social/notices/read">
             <button class="btn btn-ghost btn-sm">すべて既読にする</button>
           </form>
@@ -186,11 +181,11 @@ export function ConnectionsPage({
             ))}
           </ul>
         ) : (
-          <p class="quiet">作品への質問や誘いが届くと、ここに表示されます。</p>
+          <p class="quiet">お知らせはありません。</p>
         )}
       </section>
       <section class="social-section">
-        <h2>活動への誘い</h2>
+        <h2>Invitations</h2>
         <p class="quiet">
           受け入れてもイベントへの応募にはなりません。参加条件と予定を確認してください。
         </p>
@@ -239,7 +234,7 @@ export function ConnectionsPage({
                 )}
                 {i.state === 'accepted' && (
                   <div class="contact-panel">
-                    <h4>二人で次の一歩へ</h4>
+                    <h4>連絡先の共有</h4>
                     <p>相手だけに連絡先を共有できます。空欄で保存すると共有を取り消せます。</p>
                     {(i.sender_id === user.id ? i.recipient_contact : i.sender_contact) && (
                       <p>
@@ -282,7 +277,7 @@ export function ConnectionsPage({
           </div>
         ) : (
           <Empty title="まだ誘いはありません" href="/home" label="作品を探す">
-            気になる作品からイベントと役割を添えて誘ってみましょう。
+            作品のページから誘いを送れます。
           </Empty>
         )}
       </section>
@@ -367,11 +362,11 @@ export function OpportunitiesPage({
   return (
     <Layout title="機会" user={user} active="opportunities">
       <PageHeading
-        title="次に見せる場所を探す"
-        description="興味のあるイベントを保存して、作品や経験をどう生かすか考えましょう。"
+        title="Opportunities"
+        description="イベントの情報を保存して、準備案を作成できます。"
       />
       <section class="card social-card">
-        <h2>作品の関心から探す</h2>
+        <h2>募集を探す</h2>
         <p>リンク先で最新の募集と参加条件を確認できます。</p>
         <div class="tags">
           {['高専 ハッカソン', ...tags.map((t) => `${t} LT イベント`)].map((q) => (
@@ -414,13 +409,11 @@ export function OpportunitiesPage({
                 ? '（過去の日付です）'
                 : ''}
             </p>
-            <a href={`/opportunities/${o.id}`}>条件を確認して準備する</a>
+            <a href={`/opportunities/${o.id}`}>詳細を見る</a>
           </article>
         ))}
       </div>
-      {!items.length && (
-        <p class="feed-empty">まだ参加候補がありません。気になる募集のURLから追加できます。</p>
-      )}
+      {!items.length && <p class="feed-empty">参加候補はありません。募集のURLから追加できます。</p>}
     </Layout>
   );
 }
@@ -485,7 +478,7 @@ export function OpportunityPage({
           </details>
         </section>
         <section class="card social-card">
-          <h2>作品を生かした準備案</h2>
+          <h2>準備案</h2>
           <p>
             選んだ作品の文章と保存したイベント情報をClaudeへ送ります。根拠メモと画像ファイルと学校の登録情報は送りません。公式情報の自動確認は行いません。
           </p>
@@ -510,7 +503,7 @@ export function OpportunityPage({
               ))}
             </fieldset>
             <button class="btn btn-primary" disabled={!opportunities.enabled() || !works.length}>
-              Claudeで準備案を作る
+              準備案を作成
             </button>
           </form>
           {advice && (
@@ -560,8 +553,8 @@ export function OpportunityPage({
           )}
         </section>
         <section class="card social-card">
-          <h2>一緒に取り組む人を探す</h2>
-          <p>共有作品を見て相手の担当や次にしたいことを確かめ、活動名と役割を添えて誘えます。</p>
+          <h2>仲間を探す</h2>
+          <p>共有作品から相手を選び、活動名と役割を指定して誘えます。</p>
           <a class="btn btn-outline" href="/home">
             作品から仲間を探す
           </a>

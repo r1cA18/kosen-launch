@@ -55,7 +55,7 @@ export function ConsolePage({
             <a class="back-link" href={`/works/${work.id}`}>
               入力フォームで編集する
             </a>
-            <h1>編集コンソール</h1>
+            <h1>Editor</h1>
             <p class="quiet">
               編集版 {work.revision} /{' '}
               {work.published_revision
@@ -94,7 +94,7 @@ export function ConsolePage({
         </form>
         <div class="console-layout">
           <section class="console-canvas" aria-label="公開ページの見た目で編集">
-            <p class="preview-label">文章をクリックすると、その場で書き換えられます</p>
+            <p class="preview-label">文章をクリックして編集できます</p>
             <div class="public-work console-paper">
               <article class="work-detail">
                 <div class="tags">
@@ -269,7 +269,7 @@ export function BulkTextPage({
   return (
     <Layout title="表記の一括置換" user={user} active="works">
       <PageHeading
-        title="表記をまとめて直す"
+        title="Replace"
         description="すべての作品の下書きから言葉を探して置き換えます。公開中のページは変わりません。"
       />
       {result && (
