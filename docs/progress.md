@@ -1,5 +1,14 @@
 # 実装進捗
 
+## 公開と提出準備 2026年11月8日
+
+- homelabで`~/apps/kosen-launch`をsystemdのユーザーサービスとして動かし、Cloudflare Tunnelで`https://kosen-launch.r1ca18.dev`に公開した。`~/Develop`はSyncthingで同期されているため使っていない
+- 本番設定は`~/.config/kosen-launch/env`（権限600）。招待コード制の登録、HSTS、探索の1日上限30回
+- 開発DBの複製を移した。Macで発行したセッション・トークン・OAuthの許可と本人の`test`アカウントは除いた
+- 公開URLでDCR、ログイン、同意、PKCE付きのトークン取得、MCPのツール一覧と`get_profile`まで通ることを確認した
+- 撮影前の状態を`~/.local/share/kosen-launch/demo-snapshot.sqlite`に保存し、撮り直し時に戻せるようにした
+- 未完了：デモ動画の撮影と編集、提出フォームへの入力。トンネルのトークンはチャットに貼られたため、審査後に作り直す
+
 ## リモートMCPとOAuth 2026年11月8日
 
 Claude Codeを使わない高専生がclaude.aiとClaude DesktopのカスタムコネクタにURLを入れるだけで使えるように、同じアプリへリモートMCPと認可サーバーを追加した。
