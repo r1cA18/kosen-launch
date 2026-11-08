@@ -255,7 +255,7 @@ export class SocialStore {
         work.owner_id,
         userId,
         workId,
-        `${this.store.user(userId).display_name}さんから一緒に活動する誘いが届きました。`,
+        `${this.store.user(userId).display_name}さんから活動への誘いが届きました。`,
         '/connections',
       );
     })();

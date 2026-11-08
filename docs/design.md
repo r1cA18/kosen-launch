@@ -73,3 +73,13 @@ daisyUIが使うutilitiesレイヤーに合わせて製品の調整もutilities�
 - 本番やloopback以外のHostでは編集用のスクリプトもAPIも配信しない
 
 実装は`src/ui-editor.ts`と`public/ui-editor.js`と`public/ui-editor.css`。ファイルの書き込みは応答の後に行い、watchの再起動で応答が失われないようにしている。
+
+## リキッドグラスとトップページ
+
+2026年11月8日に追加。r1ca18.devと同じ素材感を新規のコードで再現した。
+
+- `public/app.js`が32px間隔の点を全画面のcanvasに描画する。点はゆっくり明滅し、ポインターから離れる。視差効果を減らす設定では静止する
+- カード・メニュー・投稿欄・補助ボタンは、このcanvasをぼかす半透明の面にする。上端の光沢、ポインター位置のハイライト、縁の光、ホバー時の虹色の屈折を重ねる
+- JavaScriptが無い場合はCSSのドット背景と半透明の面になる
+- 未ログインの`/`はdaisyUIの`hero`で作ったトップページ。説明は1文とし、手順をDraft・Review・Connectの3枚で示す
+- ログインとアカウント作成はdaisyUIの`tabs`・`fieldset`・`validator`で作った中央のカード
