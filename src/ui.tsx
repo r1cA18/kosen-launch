@@ -14,11 +14,11 @@ const navigation = [
 function LogoMark() {
   return (
     <svg class="logo-mark" viewBox="0 0 48 32" aria-hidden="true">
-      <path d="M0 6 6 0v26l-6 6Z" fill="#8484ad" />
-      <path d="M6 0h12v26H6Z" fill="#52b8bb" />
-      <path d="M0 32 6 26h12l-6 6Z" fill="#34345f" />
-      <path d="M22 0 42 26H22Z" fill="#e57f84" />
-      <path d="M22 26h20l-6 6H16Z" fill="#e3b5b5" />
+      <path d="M12 3.5 21.5 9v11L12 25.5 2.5 20V9Z" fill="#1f2b5c" />
+      <circle cx="12" cy="14.5" r="4" fill="#f5a524" />
+      <path d="M36 2 46 26l-10-5.5L26 26Z" fill="#3b82f6" />
+      <path d="M36 20.5 46 26H26Z" fill="#93c5fd" />
+      <rect x="2.5" y="28" width="43.5" height="2.5" rx="1.25" fill="#1f2b5c" opacity="0.18" />
     </svg>
   );
 }
@@ -56,47 +56,61 @@ export function Layout({
         <link rel="stylesheet" href="/style.css" />
         <link rel="icon" href="/favicon.svg" />
         <script src="/app.js" defer />
+        <script type="module" src="/client.js" />
       </head>
       <body data-surface={user ? 'dashboard' : portfolio ? 'portfolio' : 'auth'}>
         <a class="skip-link" href="#main">
           本文へ移動
         </a>
         <header class="site-header">
-          <a class="site-logo" href={user ? '/home' : '/'} aria-label="Kosen Launch">
+          <a class="site-home" href={user ? '/home' : '/'} aria-label="ホームへ戻る">
             <LogoMark />
           </a>
           {user ? (
-            <details class="site-menu">
-              <summary aria-label="メニュー">
-                <span class="menu-lines" />
-              </summary>
-              <nav class="menu-panel" aria-label="メインナビゲーション">
-                <ul>
+            <div class="site-menu" data-site-menu>
+              <div
+                class="site-menu-glass glass"
+                data-glass-radius="28"
+                data-glass-blur="1"
+                data-glass-refraction="40"
+                data-glass-bezel="10"
+                data-glass-frost="0.24"
+              >
+                <button
+                  class="site-menu-trigger"
+                  type="button"
+                  data-menu-trigger
+                  aria-label="メニュー"
+                  aria-expanded="false"
+                  aria-controls="site-menu-links"
+                >
+                  <span />
+                  <span />
+                </button>
+                <nav
+                  id="site-menu-links"
+                  class="site-menu-links"
+                  data-menu-links
+                  aria-label="サイトナビゲーション"
+                  hidden
+                >
                   {navigation.map(([key, href, label]) => (
-                    <li>
-                      <a href={href} aria-current={active === key ? 'page' : undefined}>
-                        {label}
-                        <ArrowIcon />
-                      </a>
-                    </li>
+                    <a href={href} aria-current={active === key ? 'page' : undefined}>
+                      {label}
+                      <ArrowIcon />
+                    </a>
                   ))}
-                </ul>
-                <div class="menu-account">
-                  <span class="profile-avatar">{user.display_name.slice(0, 1)}</span>
-                  <div>
-                    <strong>{user.display_name}</strong>
+                  <div class="site-menu-account">
                     <a href={`/u/${user.handle}`}>@{user.handle}</a>
+                    <form method="post" action="/logout">
+                      <button type="submit">ログアウト</button>
+                    </form>
                   </div>
-                  <form method="post" action="/logout">
-                    <button class="ui-action ui-action-quiet" type="submit">
-                      ログアウト
-                    </button>
-                  </form>
-                </div>
-              </nav>
-            </details>
+                </nav>
+              </div>
+            </div>
           ) : portfolio ? (
-            <a class="ui-action ui-action-plain" href={publicViewer ? '/home' : '/login'}>
+            <a class="ui-action glass" href={publicViewer ? '/home' : '/login'}>
               {publicViewer ? 'Home' : 'ログイン'}
             </a>
           ) : null}

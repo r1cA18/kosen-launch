@@ -11,3 +11,5 @@ coverage/
 public/style.css
 public/fonts.css
 public/fonts/
+public/client.js
+public/LICENSE-meniscus.txt

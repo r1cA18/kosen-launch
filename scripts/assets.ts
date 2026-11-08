@@ -40,6 +40,20 @@ export async function buildAssets() {
     await copyFile(join(font.directory, 'LICENSE'), `public/fonts/LICENSE-${font.license}.txt`);
   }
   await Bun.write('public/fonts.css', styles.join('\n'));
+  const client = await Bun.build({
+    entrypoints: ['src/client/main.ts'],
+    target: 'browser',
+    format: 'esm',
+    minify: true,
+    external: ['react', 'react/jsx-runtime'],
+    naming: 'client.js',
+    outdir: 'public',
+  });
+  if (!client.success)
+    throw new AggregateError(client.logs, 'ブラウザー用モジュールのビルドに失敗しました。');
+  if (/from\s*["']react/.test(await Bun.file('public/client.js').text()))
+    throw new Error('ブラウザー用モジュールにReactの読み込みが残っています。');
+  await copyFile('node_modules/meniscus/LICENSE', 'public/LICENSE-meniscus.txt');
   const css = Bun.spawn([...tailwindArgs, '--minify'], { stdout: 'inherit', stderr: 'inherit' });
   if ((await css.exited) !== 0) throw new Error('CSSのビルドに失敗しました。');
 }

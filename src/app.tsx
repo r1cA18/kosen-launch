@@ -191,6 +191,8 @@ export function createApp(store: Store, options: Options) {
     ['style.css', 'text/css'],
     ['fonts.css', 'text/css'],
     ['app.js', 'text/javascript'],
+    ['client.js', 'text/javascript'],
+    ['LICENSE-meniscus.txt', 'text/plain; charset=utf-8'],
     ['console.js', 'text/javascript'],
     ['favicon.svg', 'image/svg+xml'],
   ])
