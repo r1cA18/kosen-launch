@@ -5122,3 +5122,50 @@
     object-fit: cover;
   }
 }
+@layer utilities {
+  .people {
+    display: grid;
+    gap: 16px;
+  }
+  .people-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .people-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+    list-style: none;
+    padding: 0;
+  }
+  .people-list > li {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+    padding: 16px;
+    border-radius: 16px;
+    background: rgb(240 242 248 / 0.6);
+  }
+  .people-who {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .people-who > div {
+    display: grid;
+    line-height: 1.4;
+  }
+  .people-invite > summary {
+    list-style: none;
+    width: fit-content;
+  }
+  .people-invite > summary::-webkit-details-marker {
+    display: none;
+  }
+  .people-invite[open] > summary {
+    margin-bottom: 10px;
+  }
+}

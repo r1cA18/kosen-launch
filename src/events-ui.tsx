@@ -1,5 +1,5 @@
 import type { User, Work } from './store';
-import { Layout, Field, PageHeading } from './ui';
+import { Layout, Field, PageHeading, Avatar } from './ui';
 import { today, type Opportunities, type OpportunityInput, type Suggestion } from './opportunities';
 import type { DiscoveryRun } from './discovery';
 import type { Previews } from './preview';
@@ -340,6 +340,8 @@ export function OpportunityPage({
   opportunities,
   previews,
   works,
+  peers,
+  shared,
 }: {
   user: User;
   id: string;
@@ -347,7 +349,10 @@ export function OpportunityPage({
   previews?: Previews;
   works: Work[];
   adviceId?: string;
+  peers: Peer[];
+  shared: boolean;
 }) {
+  const myRoles = [...new Set(works.flatMap((w) => w.data.my_roles))].slice(0, 3).join('、');
   const o = opportunities.get(user.id, id),
     advice = opportunities.latest(user.id, id, adviceId),
     p = previews?.get(o.url);
@@ -360,17 +365,22 @@ export function OpportunityPage({
         title={o.title}
         description="保存した候補です。応募は公式ページで行ってください。"
         action={
-          <a
-            class="btn btn-primary"
-            href={`/home?${new URLSearchParams({
-              compose: 'recruit',
-              title: o.title,
-              url: o.url,
-              ...(o.deadline ? { deadline: o.deadline } : {}),
-            })}`}
-          >
-            この活動の仲間を募集
-          </a>
+          <div class="actions">
+            <a
+              class="btn btn-primary"
+              href={`/home?${new URLSearchParams({
+                compose: 'recruit',
+                title: o.title,
+                url: o.url,
+                ...(o.deadline ? { deadline: o.deadline } : {}),
+              })}`}
+            >
+              この活動の仲間を募集
+            </a>
+            <a class="btn btn-outline" href="#people">
+              検討中の人 {peers.length}人
+            </a>
+          </div>
         }
       />
       <article class="card ev-link">
@@ -504,14 +514,135 @@ export function OpportunityPage({
             </div>
           )}
         </section>
-        <section class="card social-card">
-          <h2>仲間を探す</h2>
-          <p>共有作品から相手を選び、活動名と役割を指定して誘えます。</p>
-          <a class="btn btn-outline" href="/home">
-            作品から仲間を探す
-          </a>
-        </section>
+        <PeopleSection
+          opportunityId={id}
+          title={o.title}
+          url={o.url}
+          shared={shared}
+          peers={peers}
+          myRoles={myRoles}
+        />
       </div>
     </Layout>
+  );
+}
+
+export type Peer = {
+  id: string;
+  display_name: string;
+  handle: string;
+  avatar: string | null;
+  roles: string[];
+  work: { id: string; title: string } | null;
+};
+/** People who chose to show they are considering the same event, with a role-based invitation. */
+function PeopleSection({
+  opportunityId,
+  title,
+  url,
+  shared,
+  peers,
+  myRoles,
+}: {
+  opportunityId: string;
+  title: string;
+  url: string;
+  shared: boolean;
+  peers: Peer[];
+  myRoles: string;
+}) {
+  return (
+    <section class="card social-card people" id="people">
+      <div class="people-head">
+        <div>
+          <h2>同じイベントを検討中の人</h2>
+          <p class="quiet">検討中と表示した人だけが表示されます。</p>
+        </div>
+        <form method="post" action={`/opportunities/${opportunityId}/share`}>
+          <input type="hidden" name="share" value={shared ? 'no' : 'yes'} />
+          <button class={`btn btn-sm ${shared ? 'btn-outline' : 'btn-primary'}`}>
+            {shared ? '表示をやめる' : '自分も検討中と表示'}
+          </button>
+        </form>
+      </div>
+      {peers.length ? (
+        <ul class="people-list">
+          {peers.map((p) => (
+            <li>
+              <div class="people-who">
+                <Avatar name={p.display_name} asset={p.avatar} size="md" />
+                <div>
+                  <a href={`/u/${p.handle}`}>
+                    <strong>{p.display_name}</strong>
+                  </a>
+                  <span class="quiet">@{p.handle}</span>
+                </div>
+              </div>
+              {p.roles.length > 0 && (
+                <div class="tags">
+                  {p.roles.map((r) => (
+                    <span class="badge badge-ghost">{r}</span>
+                  ))}
+                </div>
+              )}
+              {p.work && (
+                <p class="quiet">
+                  代表作品：<a href={`/u/${p.handle}/works/${p.work.id}`}>{p.work.title}</a>
+                </p>
+              )}
+              {p.work ? (
+                <details class="people-invite">
+                  <summary class="btn btn-sm btn-primary">一緒に参加したい</summary>
+                  <form
+                    method="post"
+                    action={`/social/works/${p.work.id}/invitations`}
+                    class="social-form"
+                  >
+                    <input type="hidden" name="event_title" value={title} />
+                    <input type="hidden" name="event_url" value={url} />
+                    <Field
+                      label="自分の役割"
+                      name="sender_role"
+                      required
+                      maxLength={200}
+                      value={myRoles}
+                    />
+                    <Field
+                      label="相手にお願いしたい役割"
+                      name="recipient_role"
+                      required
+                      maxLength={200}
+                      value={p.roles[0] ?? ''}
+                    />
+                    <label class="field">
+                      <span>誘う理由</span>
+                      <textarea class="textarea" name="purpose" required maxLength={1000} rows={2}>
+                        {`同じ「${title}」を検討しています。${p.work.title}の経験を一緒に活かしたいです。`}
+                      </textarea>
+                    </label>
+                    <Field
+                      label="最初の作業"
+                      name="next_step"
+                      required
+                      maxLength={500}
+                      value="締切前に30分だけ、作るものと分担を話したいです。"
+                    />
+                    <button class="btn btn-primary btn-sm">誘いを送る</button>
+                  </form>
+                </details>
+              ) : (
+                <p class="quiet">作品を公開している人に誘いを送れます。</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="quiet">
+          {shared
+            ? 'ほかに検討中と表示している人はまだいません。'
+            : '検討中と表示すると、同じイベントを検討中の人と互いに見つけられます。'}
+        </p>
+      )}
+    </section>
   );
 }

@@ -881,8 +881,31 @@ export function createApp(store: Store, options: Options) {
         opportunities={opportunities}
         previews={options.previews}
         works={store.works(user.id)}
+        shared={opportunities.sharesInterest(user.id, c.req.param('id'))}
+        peers={opportunities
+          .interestedPeers(user.id, c.req.param('id'))
+          .filter((id) => !social.blocked(user.id, id))
+          .map((id) => {
+            const peer = store.user(id);
+            const works = store.published(peer.handle);
+            const shared = works.find((w) => w.share_to_feed);
+            return {
+              id,
+              display_name: peer.display_name,
+              handle: peer.handle,
+              avatar: store.avatarOf(id),
+              roles: [...new Set(works.flatMap((w) => w.data.my_roles))].slice(0, 4),
+              work: shared ? { id: shared.work_id, title: shared.data.title } : null,
+            };
+          })}
       />,
     );
+  });
+  app.post('/opportunities/:id/share', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody();
+    opportunities.shareInterest(user.id, c.req.param('id'), b.share === 'yes');
+    return c.redirect(`/opportunities/${c.req.param('id')}#people`, 303);
   });
   app.post('/opportunities/:id/edit', async (c) => {
     const { user } = requireUser(c, true),
