@@ -172,7 +172,7 @@ export class Opportunities {
       },
       works,
     };
-    const model = this.claude.model ?? 'claude-sonnet-4-6';
+    const model = this.claude.model ?? 'claude-sonnet-5-5';
     const hash = createHash('sha256')
       .update(JSON.stringify({ version: 1, model, input }))
       .digest('hex');
