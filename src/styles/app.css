@@ -4601,6 +4601,73 @@
     grid-template-columns: 1fr;
     margin: 0;
   }
+  .connect-steps {
+    display: grid;
+    gap: 14px;
+    margin: 0 0 18px;
+    padding-left: 20px;
+    list-style: decimal;
+    font-size: 14px;
+  }
+  .connect-steps li > * + * {
+    margin-top: 10px;
+  }
+  .connect-steps li > .btn {
+    display: flex;
+    width: fit-content;
+  }
+  .connect-steps li::marker {
+    color: var(--muted);
+  }
+  .copy-field {
+    display: flex;
+    gap: 8px;
+    align-items: end;
+    width: 100%;
+    min-width: 0;
+  }
+  .copy-field .field {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0;
+  }
+  .copy-field .input {
+    width: 100%;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+  }
+  .setup-step .connect-note {
+    margin: 0;
+    font-size: 12px;
+  }
+  .setup-step details {
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .setup-step details > p {
+    margin: 10px 0;
+  }
+  .consent-lead {
+    font-size: 15px;
+    line-height: 1.8;
+  }
+  .consent-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 16px;
+    font-size: 13px;
+  }
+  .consent-facts dt {
+    color: var(--muted);
+  }
+  .consent-facts dd {
+    overflow-wrap: anywhere;
+  }
+  .consent-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
   .x-settings-form {
     display: grid;
     gap: 16px;

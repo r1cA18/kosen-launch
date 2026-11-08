@@ -188,7 +188,17 @@ export function LandingPage() {
     </Layout>
   );
 }
-export function AuthPage({ register = false, error }: { register?: boolean; error?: string }) {
+export function AuthPage({
+  register = false,
+  error,
+  next,
+}: {
+  register?: boolean;
+  error?: string;
+  /** Same-site path to return to after signing in, such as an OAuth consent request. */
+  next?: string;
+}) {
+  const keep = next ? `?next=${encodeURIComponent(next)}` : '';
   return (
     <Layout title={register ? 'アカウント作成' : 'ログイン'}>
       <section class="auth-shell">
@@ -198,10 +208,10 @@ export function AuthPage({ register = false, error }: { register?: boolean; erro
           </a>
           <h1>{register ? 'Sign up' : 'Log in'}</h1>
           <div role="tablist" class="tabs tabs-box auth-tabs">
-            <a role="tab" href="/login" class={`tab ${register ? '' : 'tab-active'}`}>
+            <a role="tab" href={`/login${keep}`} class={`tab ${register ? '' : 'tab-active'}`}>
               ログイン
             </a>
-            <a role="tab" href="/register" class={`tab ${register ? 'tab-active' : ''}`}>
+            <a role="tab" href={`/register${keep}`} class={`tab ${register ? 'tab-active' : ''}`}>
               アカウント作成
             </a>
           </div>
@@ -210,7 +220,8 @@ export function AuthPage({ register = false, error }: { register?: boolean; erro
               {error}
             </p>
           )}
-          <form method="post" action={register ? '/register' : '/login'} class="auth-form">
+          {next && <p class="quiet">ログインすると、接続の確認画面へ戻ります。</p>}
+          <form method="post" action={(register ? '/register' : '/login') + keep} class="auth-form">
             {register && (
               <>
                 <fieldset class="fieldset">
@@ -283,6 +294,61 @@ export function AuthPage({ register = false, error }: { register?: boolean; erro
             )}
             <button class="btn btn-primary btn-block" type="submit">
               {register ? 'アカウント作成' : 'ログイン'}
+            </button>
+          </form>
+        </div>
+      </section>
+    </Layout>
+  );
+}
+/** OAuth consent for a connector such as Claude; the form re-sends the validated request. */
+export function ConsentPage({
+  user,
+  client,
+  host,
+  loopback,
+  fields,
+}: {
+  user: User;
+  client: string;
+  host: string;
+  loopback: boolean;
+  fields: Record<string, string>;
+}) {
+  const hidden = Object.entries(fields).map(([name, value]) => (
+    <input type="hidden" name={name} value={value} />
+  ));
+  return (
+    <Layout title="接続の確認">
+      <section class="auth-shell">
+        <div class="card glass-card auth-card consent-card">
+          <span class="auth-logo" aria-hidden="true">
+            <Wordmark />
+          </span>
+          <h1>接続の確認</h1>
+          <p class="consent-lead">
+            <strong>{client}</strong>
+            が作品の下書き作成と更新案の送信を行います。公開はWebで本人が行います。
+          </p>
+          <dl class="consent-facts">
+            <dt>アカウント</dt>
+            <dd>@{user.handle}</dd>
+            <dt>戻り先</dt>
+            <dd>{host}</dd>
+          </dl>
+          {loopback && (
+            <p class="alert" role="note">
+              このパソコンで動くアプリへ戻ります。自分で接続を始めていない場合は拒否してください。
+            </p>
+          )}
+          <p class="quiet">接続は設定のAgentタブからいつでも解除できます。</p>
+          <form method="post" action="/oauth/authorize" class="consent-actions">
+            {hidden}
+            <button class="btn btn-outline" name="decision" value="deny">
+              拒否
+            </button>
+            <button class="btn btn-primary" name="decision" value="allow">
+              許可
             </button>
           </form>
         </div>
@@ -974,6 +1040,19 @@ export function ReviewPage({ user, work, store }: { user: User; work: Work; stor
   );
 }
 /** Agent connection settings; rendered inside the Settings page Agent tab. */
+function CopyField({ id, label, value }: { id: string; label: string; value: string }) {
+  return (
+    <div class="copy-field">
+      <label class="field">
+        <span>{label}</span>
+        <input class="input" id={id} value={value} readonly spellcheck={false} />
+      </label>
+      <button class="btn btn-outline" type="button" data-copy={id}>
+        コピー
+      </button>
+    </div>
+  );
+}
 export function ConnectPage({
   tokens,
   origin,
@@ -983,13 +1062,18 @@ export function ConnectPage({
   origin: string;
   issued?: { token: string; expires: number };
 }) {
+  const url = `${origin}/mcp`;
+  const token = issued?.token ?? '発行したトークン';
+  const host = new URL(origin).hostname;
+  const reachable =
+    origin.startsWith('https:') && !['localhost', '127.0.0.1', '[::1]'].includes(host);
   const config = JSON.stringify(
     {
       mcpServers: {
         'kosen-launch': {
           command: 'bun',
           args: ['/path/to/kosen-launch/src/mcp.ts'],
-          env: { KOSEN_LAUNCH_URL: origin, KOSEN_LAUNCH_TOKEN: '発行したトークン' },
+          env: { KOSEN_LAUNCH_URL: origin, KOSEN_LAUNCH_TOKEN: token },
         },
       },
     },
@@ -999,13 +1083,97 @@ export function ConnectPage({
   return (
     <>
       <p class="x-settings-lead">
-        コーディングエージェントにSkillとMCPを設定し、制作フォルダから作品の下書きを作成します。
+        Claudeに制作フォルダや資料を渡すと、作品の下書きを作成します。使っているアプリに合う接続方法を選んでください。公開はこのWeb画面で確認して行います。
       </p>
       <div class="connect-layout">
-        <section class="card setup-step">
+        <section class="card setup-step" id="connect-claude">
           <span class="step-number">1</span>
+          <h2>Claude（Web・Desktop）</h2>
+          <p>claude.aiとClaude Desktopでは、コネクタのURLを追加するだけで使えます。</p>
+          <ol class="connect-steps">
+            <li>Claudeで「Customize」→「Connectors」→「Add custom connector」を開きます</li>
+            <li>
+              次のURLを入力します
+              <CopyField id="mcp-url" label="コネクタのURL" value={url} />
+            </li>
+            <li>OAuth clientを選ぶ画面では「Register automatically」を選びます</li>
+            <li>「Connect」を押し、表示されるKosen Launchの確認画面で「許可」を押します</li>
+            <li>
+              Skillをダウンロードし、「Customize」→「Skills」からアップロードしてオンにします
+              <a
+                class="btn btn-outline btn-sm"
+                href="/downloads/kosen-portfolio-skill.zip"
+                download="kosen-portfolio-skill.zip"
+              >
+                Skill（zip）をダウンロード
+              </a>
+            </li>
+          </ol>
+          <p class="connect-note" role="note">
+            {reachable
+              ? 'ClaudeはAnthropicのクラウドからこのURLへ接続します。'
+              : 'claude.aiとDesktopはAnthropicのクラウドから接続するため、HTTPSの公開URLが必要です。このサーバーは公開URLではないため、手元ではClaude CodeのHTTP接続で試してください。'}
+          </p>
+        </section>
+        <section class="card setup-step" id="connect-claude-code">
+          <span class="step-number">2</span>
+          <h2>Claude Code</h2>
+          <p>同じURLにHTTPで接続します。初回はブラウザーでログインして許可します。</p>
+          <ol class="connect-steps">
+            <li>
+              ターミナルで次のコマンドを実行します
+              <CopyField
+                id="claude-code-command"
+                label="コマンド"
+                value={`claude mcp add --transport http kosen-launch ${url}`}
+              />
+            </li>
+            <li>Claude Codeで「/mcp」を開き、kosen-launchを選んで認証します</li>
+            <li>
+              SKILL.mdを「~/.claude/skills/kosen-portfolio/」に置きます
+              <a
+                class="btn btn-outline btn-sm"
+                href="/downloads/kosen-portfolio-skill.md"
+                download="SKILL.md"
+              >
+                SKILL.mdをダウンロード
+              </a>
+            </li>
+          </ol>
+          <details>
+            <summary>連携トークンで接続する</summary>
+            <p>下で発行したトークンをヘッダーに設定して接続します。</p>
+            <CopyField
+              id="claude-code-header"
+              label="コマンド"
+              value={`claude mcp add --transport http kosen-launch ${url} --header "Authorization: Bearer ${token}"`}
+            />
+          </details>
+        </section>
+        <section class="card setup-step" id="connect-stdio">
+          <span class="step-number">3</span>
+          <h2>その他のエージェント（stdio）</h2>
+          <p>
+            MCPのstdioに対応するエージェントは、このリポジトリのアダプターと連携トークンで接続します。
+          </p>
+          <details>
+            <summary>MCPの接続設定を見る</summary>
+            <p>パスをこのプロジェクトの場所へ置き換え、発行したトークンを設定してください。</p>
+            <pre>
+              <code>{config}</code>
+            </pre>
+          </details>
+          <a
+            class="btn btn-outline btn-sm"
+            href="/downloads/kosen-portfolio-skill.md"
+            download="SKILL.md"
+          >
+            SKILL.mdをダウンロード
+          </a>
+        </section>
+        <section class="card setup-step" id="connect-token">
           <h2>連携トークンを作る</h2>
-          <p>下書きの作成と更新案の送信に使います。公開はこのWeb画面で確認して行います。</p>
+          <p>Claude Codeのトークン接続とstdioで使います。7日間有効です。</p>
           <form method="post" action="/settings/agents/tokens">
             <Field
               label="接続名"
@@ -1018,42 +1186,21 @@ export function ConnectPage({
           </form>
           {issued && (
             <div class="token-result">
-              <p role="status">トークンを発行しました。この画面で一度だけ表示します。</p>
-              <label class="field">
-                <span>連携トークン</span>
-                <input class="input" id="issued-token" value={issued.token} readonly />
-              </label>
-              <button class="btn btn-outline" type="button" data-copy="issued-token">
-                コピー
-              </button>
+              <p role="status">
+                トークンを発行しました。この画面で一度だけ表示します。上のコマンドと設定にも反映しました。
+              </p>
+              <CopyField id="issued-token" label="連携トークン" value={issued.token} />
               <p class="quiet">有効期限：{new Date(issued.expires).toLocaleDateString('ja-JP')}</p>
             </div>
           )}
         </section>
         <section class="card setup-step">
-          <span class="step-number">2</span>
-          <h2>SkillとMCPを接続する</h2>
-          <p>Skillを利用するエージェントのSkillディレクトリへ配置してください。</p>
-          <a class="btn btn-outline" href="/downloads/kosen-portfolio-skill.md" download="SKILL.md">
-            Skillをダウンロード
-          </a>
-          <details>
-            <summary>MCPの接続設定を見る</summary>
-            <p>パスをこのプロジェクトの場所へ置き換え、発行したトークンを設定してください。</p>
-            <pre>
-              <code>{config}</code>
-            </pre>
-          </details>
-        </section>
-        <section class="card setup-step">
-          <span class="step-number">3</span>
           <h2>下書きを依頼する</h2>
           <blockquote>
-            このフォルダからKosen
-            Launchのポートフォリオ下書きを作って。自分の担当が不明なところは質問して。
+            この資料からKosen Launchの作品下書きを作って。自分の担当が不明なところは質問して。
           </blockquote>
           <p>エージェントから下書きが届くと、作品一覧で確認できます。</p>
-          <a class="btn btn-outline" href="/works">
+          <a class="btn btn-outline btn-sm" href="/works">
             作品一覧を見る
           </a>
         </section>
@@ -1070,12 +1217,14 @@ export function ConnectPage({
                     ? '失効済み'
                     : t.expires < Date.now()
                       ? '期限切れ'
-                      : `有効期限 ${new Date(t.expires).toLocaleDateString('ja-JP')}`}
+                      : t.kind === 'connector'
+                        ? `コネクタ・再認証の期限 ${new Date(t.expires).toLocaleDateString('ja-JP')}`
+                        : `連携トークン・有効期限 ${new Date(t.expires).toLocaleDateString('ja-JP')}`}
                 </p>
               </div>
               {!t.revoked && (
                 <form method="post" action={`/settings/agents/tokens/${t.id}/revoke`}>
-                  <button class="btn btn-outline">接続を解除</button>
+                  <button class="btn btn-outline btn-sm">接続を解除</button>
                 </form>
               )}
             </div>

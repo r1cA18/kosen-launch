@@ -45,8 +45,12 @@ import { EditorPage } from './editor-ui';
 import { WelcomePage } from './welcome-ui';
 import { NextSection } from './home-ui';
 import { layoutOf, withLayout } from './layout';
+import { remotePaths, remoteRoutes } from './remote';
 
 type Env = { Variables: { identity: Identity | null } };
+/** Only an OAuth consent request may be a return path after signing in. */
+const nextPath = (value: string | undefined) =>
+  value && /^\/oauth\/authorize\?[^\s\\]*$/.test(value) ? value : undefined;
 type Options = {
   origin: string;
   assetDirectory: string;
@@ -89,6 +93,7 @@ export function createApp(store: Store, options: Options) {
     if (
       !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) &&
       !(identity?.mode === 'agent' && c.req.path.startsWith('/v1/')) &&
+      !remotePaths.includes(c.req.path) &&
       c.req.header('Origin') !== origin
     )
       throw new DomainError(403, 'この画面からもう一度操作してください。');
@@ -191,7 +196,11 @@ export function createApp(store: Store, options: Options) {
       return c.json({ error: message }, status as ContentfulStatusCode);
     if (c.req.path === '/register' || c.req.path === '/login')
       return c.html(
-        <AuthPage register={c.req.path === '/register'} error={message} />,
+        <AuthPage
+          register={c.req.path === '/register'}
+          error={message}
+          next={nextPath(c.req.query('next'))}
+        />,
         status as ContentfulStatusCode,
       );
     return c.html(
@@ -224,14 +233,18 @@ export function createApp(store: Store, options: Options) {
     return c.body(await file.arrayBuffer());
   });
   app.get('/', (c) => (c.get('identity') ? c.redirect('/home') : c.html(<LandingPage />)));
-  app.get('/register', (c) => c.html(<AuthPage register />));
-  app.get('/login', (c) => c.html(<AuthPage />));
+  app.get('/register', (c) => c.html(<AuthPage register next={nextPath(c.req.query('next'))} />));
+  app.get('/login', (c) => {
+    const next = nextPath(c.req.query('next'));
+    if (next && c.get('identity')?.mode === 'session') return c.redirect(next, 302);
+    return c.html(<AuthPage next={next} />);
+  });
   app.post('/register', async (c) => {
     const input = registrationSchema.parse(await c.req.parseBody());
     throttle(input.email);
     const user = await store.register(input);
     authenticate(c, user.id);
-    return c.redirect('/welcome', 303);
+    return c.redirect(nextPath(c.req.query('next')) ?? '/welcome', 303);
   });
   app.get('/welcome', (c) => {
     const { user } = requireUser(c, true);
@@ -251,7 +264,7 @@ export function createApp(store: Store, options: Options) {
     throttle(body.email);
     const user = await store.login(body.email, body.password);
     authenticate(c, user.id);
-    return c.redirect('/home', 303);
+    return c.redirect(nextPath(c.req.query('next')) ?? '/home', 303);
   });
   app.post('/logout', (c) => {
     requireUser(c, true);
@@ -613,6 +626,7 @@ export function createApp(store: Store, options: Options) {
     store.revoke(user.id, c.req.param('id'));
     return c.redirect('/settings?tab=agent', 303);
   });
+  remoteRoutes(app, store, { origin, skillPath: options.skillPath });
   app.get('/downloads/kosen-portfolio-skill.md', async (c) => {
     c.header('Content-Type', 'text/markdown; charset=utf-8');
     c.header('Content-Disposition', 'attachment; filename="SKILL.md"');

@@ -26,9 +26,12 @@ Nixを使わない場合はBunを用意して後ろの2行を実行する。開�
 ## 最初の一件
 
 1. Webでアカウントを作成
-2. エージェント接続画面でトークンを発行
-3. [接続手順](docs/agent-setup.md)に従いSkillとMCPを導入
-4. コーディングエージェントへ制作フォルダを指定して下書き作成を依頼
+2. 設定のAgentタブで接続方法を選ぶ
+3. [接続手順](docs/agent-setup.md)に従いMCPとSkillを導入
+   - claude.aiとClaude Desktop：カスタムコネクタに`<APP_ORIGIN>/mcp`を追加してOAuthで許可し、Skillのzipをアップロード
+   - Claude Code：`claude mcp add --transport http kosen-launch <APP_ORIGIN>/mcp`で追加して`/mcp`から認証
+   - その他のエージェント：連携トークンを発行してstdioアダプターを設定
+4. エージェントへ制作資料を渡して下書き作成を依頼
 5. Webの作品一覧で担当と内容を確認して必要な箇所を編集
 6. 公開前の確認画面から公開
 
@@ -38,7 +41,8 @@ Nixを使わない場合はBunを用意して後ろの2行を実行する。開�
 
 - アカウント登録とログインとログアウト
 - 期限付き連携トークンの発行と失効
-- Skill配布と7種類のstdio MCPツール
+- リモートMCP（Streamable HTTPの`/mcp`とOAuth 2.1の認可サーバー）とstdio MCPの8種類のツール
+- Skillのzip配布とMCP Skills拡張での配布
 - 作品下書きと画像の送信と共通UIでのプレビュー
 - 手動編集とエージェント更新案の採用・見送り
 - 確認した版の公開と公開停止
