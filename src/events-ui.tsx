@@ -300,7 +300,6 @@ export function OpportunityPage({
               title: o.title,
               url: o.url,
               ...(o.deadline ? { deadline: o.deadline } : {}),
-              ...(advice?.result?.role ? { roles: advice.result.role.slice(0, 300) } : {}),
             })}`}
           >
             この活動の仲間を募集
