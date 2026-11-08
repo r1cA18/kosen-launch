@@ -229,11 +229,13 @@ test('Messagesは相手ごとに質問と誘いと参加希望をまとめ他人
   expect(list[0].person.handle).toBe('peer');
   expect(list[0].unread).toBe(true);
   expect(list[0].count).toBe(3);
-  expect(tl.thread(owner.id, peer.id).map((m) => m.type)).toEqual([
-    'question',
-    'join',
-    'invitation',
-  ]);
+  // Items created in the same millisecond have no defined order, so compare as a set.
+  expect(
+    tl
+      .thread(owner.id, peer.id)
+      .map((m) => m.type)
+      .sort(),
+  ).toEqual(['invitation', 'join', 'question']);
   expect(tl.conversations(third.id)).toHaveLength(0);
   expect(tl.thread(third.id, peer.id)).toHaveLength(0);
 
