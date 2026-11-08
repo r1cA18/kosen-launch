@@ -295,7 +295,7 @@ export class SocialStore {
         userId,
         item.work_id,
         state === 'accepted'
-          ? '誘いが受け入れられました。次の一歩を相談できます。'
+          ? '誘いが受け入れられました。連絡先を共有できます。'
           : state === 'declined'
             ? '誘いが見送られました。'
             : '誘いが取り消されました。',

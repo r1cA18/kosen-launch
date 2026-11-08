@@ -177,7 +177,7 @@ function ShareEvent({ work }: { work: Published }) {
       <EmbeddedWork work={work} />
       <div class="tl-actions">
         <a class="btn btn-ghost btn-sm" href={`${workHref(work)}#conversation`}>
-          質問・一緒に活動
+          質問・誘い
         </a>
       </div>
     </article>
@@ -201,9 +201,9 @@ export function Timeline({
     back = query({ filter: view.filter, role: view.role }),
     published = works.filter((w) => w.published_revision);
   return (
-    <section class="timeline" aria-label="制作ログ">
+    <section class="timeline" aria-label="Timeline">
       <div class="section-heading">
-        <h2>制作ログ</h2>
+        <h2>Timeline</h2>
         <a href="/connections">{unread ? `新しいお知らせ ${unread}件` : '質問と誘いを確認する'}</a>
       </div>
       <section class="tl-composer">
@@ -328,8 +328,8 @@ export function Timeline({
         </div>
       ) : (
         <div class="feed-empty">
-          <h3>まだ投稿がありません</h3>
-          <p>制作の進み具合や仲間募集を投稿すると、ここに表示されます。</p>
+          <h3>投稿はありません</h3>
+          <p>進捗や仲間募集を投稿すると表示されます。</p>
         </div>
       )}
     </section>
@@ -367,7 +367,7 @@ function JoinItem({ join, user }: { join: Join; user: User }) {
       )}
       {join.state === 'accepted' && (
         <div class="contact-panel">
-          <h4>次の一歩へ</h4>
+          <h4>連絡先の共有</h4>
           <p>相手だけに連絡先を共有できます。空欄で保存すると共有を取り消せます。</p>
           {other && (
             <p>
@@ -415,7 +415,7 @@ export function TimelinePostPage({
   return (
     <Layout title={post.kind === 'recruit' ? post.data.title : '投稿'} user={user}>
       <PageHeading
-        title="投稿"
+        title="Post"
         action={
           <a class="btn btn-outline" href="/home">
             ホームへ戻る
@@ -487,7 +487,7 @@ export function TimelinePostPage({
                     </label>
                   )}
                   <label class="field">
-                    <span>一言</span>
+                    <span>メッセージ</span>
                     <textarea class="textarea" name="message" rows={3} maxLength={500} required />
                   </label>
                   <button class="btn btn-primary">参加希望を送る</button>

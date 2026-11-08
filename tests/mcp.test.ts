@@ -43,7 +43,7 @@ test('実stdio MCPでルール取得から下書き作成・更新案・公開�
   try {
     await client.connect(transport);
     const tools = await client.listTools();
-    expect(tools.tools).toHaveLength(7);
+    expect(tools.tools).toHaveLength(8);
     expect(tools.tools.some((t) => t.name === 'publish')).toBe(false);
     const call = async (name: string, args: Record<string, unknown> = {}) => {
       const result = await client.callTool({ name, arguments: args });
@@ -51,6 +51,7 @@ test('実stdio MCPでルール取得から下書き作成・更新案・公開�
       const content = result.content as { type: string; text: string }[];
       return JSON.parse(content[0].text);
     };
+    expect(await call('get_profile')).toEqual({ handle: 'mcp-user', display_name: 'MCP' });
     const rules = await call('get_authoring_rules');
     expect(rules.version).toBe('1');
     const imagePath = join(dir, 'test.png');

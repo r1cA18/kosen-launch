@@ -58,6 +58,20 @@ serveStdio(() => {
     () => result(() => request('/v1/authoring-rules')),
   );
   server.registerTool(
+    'get_profile',
+    {
+      description: '本人のhandleと表示名を取得します。資料の記名との照合に使います。',
+      inputSchema: z.object({}),
+    },
+    () =>
+      result(async () => {
+        const { user } = (await request('/v1/me')) as {
+          user: { handle: string; display_name: string };
+        };
+        return { handle: user.handle, display_name: user.display_name };
+      }),
+  );
+  server.registerTool(
     'list_works',
     { description: '本人の作品と現在の版を取得し重複作成を防ぎます。', inputSchema: z.object({}) },
     () => result(() => request('/v1/works')),

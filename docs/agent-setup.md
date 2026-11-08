@@ -36,6 +36,7 @@ Webでアカウントを作成し「エージェント接続」で連携トー�
 | MCPツール             | 役割                               |
 | --------------------- | ---------------------------------- |
 | get_authoring_rules   | 共通Schemaと文章のルールを取得     |
+| get_profile           | 本人のhandleと表示名を取得         |
 | list_works / get_work | 本人の作品と最新版を取得           |
 | upload_image          | 選択した画像を送信                 |
 | create_work_draft     | source_keyで重複を防いで下書き作成 |

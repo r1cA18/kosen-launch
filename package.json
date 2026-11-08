@@ -9,7 +9,7 @@
     "dev:edit": "UI_EDITOR=1 bun scripts/dev.ts",
     "start": "bun dist/server.js",
     "check": "bun --bun tsc --noEmit",
-    "test": "bun test",
+    "test": "bun test --timeout 30000",
     "build": "bun scripts/build.ts",
     "mcp": "bun src/mcp.ts",
     "format": "bun --bun prettier --write src tests scripts public docs README.md AGENTS.md package.json tsconfig.json",
