@@ -15,6 +15,8 @@ bun install --frozen-lockfile
 bun run dev
 ```
 
+画面の文言を直すときは`bun run dev:edit`で起動し、右下の「UI編集」から編集する。反映すると`src/`が書き換わる。詳細は[画面とデザインの方針](docs/design.md#ui編集コンソール)。
+
 Nixを使わない場合はBunを用意して後ろの2行を実行する。開発URLは`http://127.0.0.1:4177`。最初は利用者も作品も空の状態で起動する。
 
 開発サーバーはCSSとフォントを生成してから起動しCSSの変更も監視する。スタイルの編集先は`src/styles/app.css`。フォントはローカル配信する。

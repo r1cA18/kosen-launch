@@ -13,6 +13,7 @@
 
 - `bun install --frozen-lockfile`: 依存関係の導入
 - `bun run dev`: ローカル開発サーバー
+- `bun run dev:edit`: 画面上で文言を直してsrc/へ反映するUI編集付きの開発サーバー
 - `bun run check`: TypeScriptの型確認
 - `bun test`: APIとMCPの検証
 - `bun run build`: CSSとフォントとサーバーとMCPのビルド

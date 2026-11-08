@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { createApp } from './app';
 import { Store } from './store';
+import { UiEditor, prettier } from './ui-editor';
 
 const host = process.env.HOST ?? '127.0.0.1';
 const port = Number(process.env.PORT ?? 4177);
@@ -12,9 +13,14 @@ const app = createApp(store, {
   staticDirectory: resolve('public'),
   skillPath: resolve('skills/kosen-portfolio/SKILL.md'),
   claude: { key: process.env.ANTHROPIC_API_KEY, model: process.env.ANTHROPIC_MODEL },
+  uiEditor:
+    process.env.UI_EDITOR === '1' && ['127.0.0.1', 'localhost'].includes(host)
+      ? new UiEditor(resolve('.'), (files) => prettier(resolve('.'), files))
+      : undefined,
 });
 const server = Bun.serve({ hostname: host, port, fetch: app.fetch });
 console.log(`Kosen Launch: ${origin}`);
+if (process.env.UI_EDITOR === '1') console.log('UI editor: enabled on loopback only');
 for (const signal of ['SIGTERM', 'SIGINT'] as const)
   process.on(signal, () => {
     server.stop(true);
