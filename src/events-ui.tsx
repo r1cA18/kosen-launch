@@ -2,6 +2,7 @@ import type { User, Work } from './store';
 import { Layout, Field, PageHeading } from './ui';
 import { today, type Opportunities, type OpportunityInput, type Suggestion } from './opportunities';
 import type { DiscoveryRun } from './discovery';
+import type { Previews } from './preview';
 
 const states = {
   saved: '保存済み',
@@ -73,17 +74,56 @@ function OpportunityFields({ value }: { value?: OpportunityInput }) {
     </>
   );
 }
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
+/** 16:9 thumbnail. Without an OGP image it shows the favicon and site name. */
+function Thumb({ url, previews }: { url: string; previews?: Previews }) {
+  const p = previews?.get(url);
+  const domain = hostOf(url);
+  if (p?.image_id)
+    return (
+      <div class="ev-thumb">
+        <img src={`/event-previews/${p.image_id}`} alt="" loading="lazy" decoding="async" />
+      </div>
+    );
+  return (
+    <div class="ev-thumb ev-thumb-empty" aria-hidden="true">
+      {p?.icon_id && <img class="ev-icon" src={`/event-previews/${p.icon_id}`} alt="" />}
+      <span>{p?.site_name || domain}</span>
+    </div>
+  );
+}
+/** Favicon, site name and domain. */
+function SiteLine({ url, previews }: { url: string; previews?: Previews }) {
+  const p = previews?.get(url);
+  const domain = hostOf(url);
+  return (
+    <div class="ev-site">
+      {p?.icon_id && <img class="ev-icon" src={`/event-previews/${p.icon_id}`} alt="" />}
+      <span class="ev-site-name">{p?.site_name || domain}</span>
+      {p?.site_name && p.site_name !== domain && <span class="quiet">{domain}</span>}
+    </div>
+  );
+}
 export type EventsTab = 'foryou' | 'saved' | 'plans';
 export type DiscoveryStatus = { enabled: boolean; running: boolean; last: DiscoveryRun | null };
-function SuggestionCard({ s }: { s: Suggestion }) {
+function SuggestionCard({ s, previews }: { s: Suggestion; previews?: Previews }) {
+  const p = previews?.get(s.url);
   const where = s.location || formats[s.format];
   return (
     <article class="card ev-card">
+      <Thumb url={s.url} previews={previews} />
       <div class="ev-meta">
         <span class="badge badge-outline">{kinds[s.kind]}</span>
-        <span>{s.source_domain}</span>
       </div>
+      <SiteLine url={s.url} previews={previews} />
       <h2>{s.title}</h2>
+      {p?.description && <p class="ev-desc">{p.description}</p>}
       <dl class="ev-facts">
         <div>
           <dt>開催</dt>
@@ -134,13 +174,23 @@ function SuggestionCard({ s }: { s: Suggestion }) {
     </article>
   );
 }
-function SavedList({ items, empty }: { items: ReturnType<Opportunities['list']>; empty: string }) {
+function SavedList({
+  items,
+  empty,
+  previews,
+}: {
+  items: ReturnType<Opportunities['list']>;
+  empty: string;
+  previews?: Previews;
+}) {
   const day = today();
   if (!items.length) return <p class="feed-empty">{empty}</p>;
   return (
-    <div class="ev-list">
+    <div class="ev-grid ev-list">
       {items.map((o) => (
         <a class="card ev-row" href={`/opportunities/${o.id}`}>
+          <Thumb url={o.url} previews={previews} />
+          <SiteLine url={o.url} previews={previews} />
           <span class="ev-row-title">{o.title}</span>
           <span class="quiet">
             {short(o.date) || '開催日未確認'} · 締切 {short(o.deadline) || '未確認'}
@@ -157,11 +207,13 @@ export function EventsPage({
   user,
   tab,
   opportunities,
+  previews,
   status,
 }: {
   user: User;
   tab: EventsTab;
   opportunities: Opportunities;
+  previews?: Previews;
   status: DiscoveryStatus;
 }) {
   const items = opportunities.suggestions(user.id),
@@ -205,7 +257,7 @@ export function EventsPage({
           {items.length ? (
             <div class="ev-grid">
               {items.map((s) => (
-                <SuggestionCard s={s} />
+                <SuggestionCard s={s} previews={previews} />
               ))}
             </div>
           ) : status.enabled && (status.running || !last) ? (
@@ -223,6 +275,7 @@ export function EventsPage({
         <section aria-label="保存済み">
           <SavedList
             items={saved}
+            previews={previews}
             empty="保存したイベントはありません。For youから保存できます。"
           />
           <details class="card social-card ev-add">
@@ -237,6 +290,7 @@ export function EventsPage({
         <section aria-label="参加予定・参加済み">
           <SavedList
             items={plans}
+            previews={previews}
             empty="参加予定のイベントはありません。保存したイベントの詳細で参加状況を変更できます。"
           />
         </section>
@@ -244,8 +298,17 @@ export function EventsPage({
     </Layout>
   );
 }
+function RailThumb({ url, previews }: { url: string; previews?: Previews }) {
+  const p = previews?.get(url);
+  const id = p?.image_id ?? p?.icon_id;
+  return (
+    <span class="ev-rail-thumb" aria-hidden="true">
+      {id && <img src={`/event-previews/${id}`} alt="" loading="lazy" />}
+    </span>
+  );
+}
 /** Small list for the Home right column. */
-export function EventsRail({ items }: { items: Suggestion[] }) {
+export function EventsRail({ items, previews }: { items: Suggestion[]; previews?: Previews }) {
   return (
     <section class="card ev-rail" aria-label="あなた向けのイベント">
       <div class="ev-rail-head">
@@ -256,6 +319,7 @@ export function EventsRail({ items }: { items: Suggestion[] }) {
         <ul>
           {items.map((s) => (
             <li>
+              <RailThumb url={s.url} previews={previews} />
               <a href="/opportunities">{s.title}</a>
               <span class="quiet">
                 {[short(s.date) || '日付未確認', s.source_domain].join(' · ')}
@@ -274,16 +338,19 @@ export function OpportunityPage({
   user,
   id,
   opportunities,
+  previews,
   works,
 }: {
   user: User;
   id: string;
   opportunities: Opportunities;
+  previews?: Previews;
   works: Work[];
   adviceId?: string;
 }) {
   const o = opportunities.get(user.id, id),
-    advice = opportunities.latest(user.id, id, adviceId);
+    advice = opportunities.latest(user.id, id, adviceId),
+    p = previews?.get(o.url);
   return (
     <Layout title={o.title} user={user} active="opportunities">
       <a class="ev-back" href="/opportunities?tab=saved">
@@ -306,6 +373,18 @@ export function OpportunityPage({
           </a>
         }
       />
+      <article class="card ev-link">
+        <Thumb url={o.url} previews={previews} />
+        <div class="ev-link-body">
+          <SiteLine url={o.url} previews={previews} />
+          <h2>{p?.title || o.title}</h2>
+          {p?.description && <p class="ev-desc ev-desc-long">{p.description}</p>}
+          <p class="quiet">{hostOf(o.url)}</p>
+          <a class="btn btn-outline btn-sm" href={o.url} target="_blank" rel="noopener noreferrer">
+            公式ページを開く
+          </a>
+        </div>
+      </article>
       <div class="social-stack">
         <section class="card social-card">
           <a href={o.url} target="_blank" rel="noopener noreferrer">
