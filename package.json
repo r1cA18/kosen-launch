@@ -6,6 +6,7 @@
   "packageManager": "bun@1.4.2",
   "scripts": {
     "dev": "bun scripts/dev.ts",
+    "dev:edit": "UI_EDITOR=1 bun scripts/dev.ts",
     "start": "bun dist/server.js",
     "check": "bun --bun tsc --noEmit",
     "test": "bun test",

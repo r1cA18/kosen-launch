@@ -33,6 +33,7 @@ import {
 } from './ui';
 import { ConsolePage, BulkTextPage } from './console-ui';
 import { applyAllFixes, applyFix, isEditableField, replaceAll } from './console';
+import { applySchema, type UiEditor } from './ui-editor';
 
 type Env = { Variables: { identity: Identity | null } };
 type Options = {
@@ -41,6 +42,7 @@ type Options = {
   staticDirectory: string;
   skillPath: string;
   claude?: ClaudeOptions;
+  uiEditor?: UiEditor;
 };
 export function createApp(store: Store, options: Options) {
   const app = new Hono<Env>();
@@ -78,6 +80,43 @@ export function createApp(store: Store, options: Options) {
       throw new DomainError(403, 'この画面からもう一度操作してください。');
     await next();
   });
+  const editor = options.uiEditor;
+  const loopback = (c: Context<Env>) =>
+    ['127.0.0.1', 'localhost'].includes(new URL(c.req.url).hostname.replace(/^\[|\]$/g, '')) &&
+    /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(c.req.header('Host') ?? new URL(c.req.url).host);
+  if (editor) {
+    app.use('*', async (c, next) => {
+      await next();
+      if (!loopback(c) || !c.res.headers.get('Content-Type')?.includes('text/html')) return;
+      const html = await c.res.text();
+      const headers = new Headers(c.res.headers);
+      headers.delete('Content-Length');
+      c.res = new Response(
+        html.replace(
+          '</head>',
+          '<link rel="stylesheet" href="/__ui-editor/editor.css" /><script src="/__ui-editor/editor.js" defer></script></head>',
+        ),
+        { status: c.res.status, headers },
+      );
+    });
+    for (const [name, type] of [
+      ['editor.js', 'text/javascript'],
+      ['editor.css', 'text/css'],
+    ])
+      app.get(`/__ui-editor/${name}`, async (c) => {
+        if (!loopback(c)) throw new DomainError(404, 'ページが見つかりません。');
+        c.header('Content-Type', type);
+        return c.body(
+          await Bun.file(join(options.staticDirectory, `ui-editor.${name.split('.')[1]}`)).text(),
+        );
+      });
+    app.post('/__ui-editor/apply', async (c) => {
+      if (!loopback(c)) throw new DomainError(404, 'ページが見つかりません。');
+      const { results, write } = await editor.plan(applySchema.parse(await c.req.json()));
+      setTimeout(() => void write().catch(() => console.error('UI editor write failed')), 300);
+      return c.json({ results });
+    });
+  }
   const requireUser = (c: Context<Env>, webOnly = false): Identity => {
     const identity = c.get('identity') as Identity | null;
     if (!identity) throw new DomainError(401, 'ログインしてください。');
