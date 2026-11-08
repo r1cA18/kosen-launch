@@ -8,6 +8,8 @@ import { randomUUID } from 'node:crypto';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Store, DomainError, type Identity } from './store';
 import { SocialStore, invitationSchema } from './social';
+import { TimelineStore, parseRoles } from './timeline';
+import { Timeline, TimelinePostPage } from './timeline-ui';
 import { Opportunities, opportunitySchema, planState, type ClaudeOptions } from './opportunities';
 import { Conversation, ConnectionsPage, OpportunitiesPage, OpportunityPage } from './social-ui';
 import {
@@ -29,6 +31,8 @@ import {
   PublicWorkPage,
   ErrorPage,
 } from './ui';
+import { ConsolePage, BulkTextPage } from './console-ui';
+import { applyAllFixes, applyFix, isEditableField, replaceAll } from './console';
 
 type Env = { Variables: { identity: Identity | null } };
 type Options = {
@@ -41,6 +45,7 @@ type Options = {
 export function createApp(store: Store, options: Options) {
   const app = new Hono<Env>();
   const social = new SocialStore(store);
+  const timeline = new TimelineStore(store, social);
   const opportunities = new Opportunities(store, options.claude);
   const origin = new URL(options.origin).origin;
   const attempts = new Map<string, { count: number; until: number }>();
@@ -146,6 +151,7 @@ export function createApp(store: Store, options: Options) {
     ['style.css', 'text/css'],
     ['fonts.css', 'text/css'],
     ['app.js', 'text/javascript'],
+    ['console.js', 'text/javascript'],
     ['favicon.svg', 'image/svg+xml'],
   ])
     app.get('/' + route, async (c) => {
@@ -188,19 +194,104 @@ export function createApp(store: Store, options: Options) {
   });
   app.get('/home', (c) => {
     const { user } = requireUser(c, true);
+    const role = c.req.query('role')?.slice(0, 30) || undefined;
     return c.html(
-      <HomePage
-        user={user}
-        works={store.works(user.id)}
-        feed={social.feed(user.id)}
-        store={store}
-        unread={social.notices(user.id).filter((n) => !n.read).length}
-      />,
+      <HomePage user={user} works={store.works(user.id)}>
+        <Timeline
+          user={user}
+          timeline={timeline}
+          works={store.works(user.id)}
+          unread={social.notices(user.id).filter((n) => !n.read).length}
+          view={{
+            filter: c.req.query('filter') === 'recruit' ? 'recruit' : 'all',
+            role,
+            compose: c.req.query('compose') === 'recruit' ? 'recruit' : 'progress',
+          }}
+        />
+      </HomePage>,
     );
   });
   app.get('/works', (c) => {
     const { user } = requireUser(c, true);
     return c.html(<WorksPage user={user} works={store.works(user.id)} />);
+  });
+  app.get('/works/text', (c) => {
+    const { user } = requireUser(c, true);
+    const updated = c.req.query('updated');
+    return c.html(
+      <BulkTextPage
+        user={user}
+        works={store.works(user.id)}
+        find={(c.req.query('find') ?? '').slice(0, 100)}
+        replacement={(c.req.query('replace') ?? '').slice(0, 100)}
+        result={
+          updated === undefined
+            ? undefined
+            : { updated: Number(updated) || 0, conflicts: Number(c.req.query('conflicts')) || 0 }
+        }
+      />,
+    );
+  });
+  app.post('/works/text', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody({ all: true });
+    const find = z.string().min(1).max(100).parse(b.find),
+      replacement = z
+        .string()
+        .max(100)
+        .parse(b.replace ?? '');
+    const ids = ([] as unknown[]).concat(b.work ?? []).map(String);
+    let updated = 0,
+      conflicts = 0;
+    for (const id of ids) {
+      const work = store.work(user.id, id);
+      const base = z.coerce.number().int().positive().parse(b[`revision_${id}`]);
+      const data = workSchema.parse(replaceAll(work.data, find, replacement));
+      if (JSON.stringify(data) === JSON.stringify(work.data)) continue;
+      try {
+        store.updateWork(user.id, id, base, data);
+        updated++;
+      } catch (error) {
+        if (error instanceof DomainError && error.status === 409) conflicts++;
+        else throw error;
+      }
+    }
+    return c.redirect(`/works/text?updated=${updated}&conflicts=${conflicts}`, 303);
+  });
+  app.get('/works/:id/console', (c) => {
+    const { user } = requireUser(c, true);
+    return c.html(
+      <ConsolePage
+        user={user}
+        work={store.work(user.id, c.req.param('id'))}
+        store={store}
+        notice={
+          c.req.query('saved')
+            ? '保存しました。'
+            : c.req.query('fixed')
+              ? '表記を修正しました。'
+              : undefined
+        }
+      />,
+    );
+  });
+  app.post('/works/:id/console/fix', async (c) => {
+    const { user } = requireUser(c, true),
+      id = c.req.param('id'),
+      work = store.work(user.id, id),
+      b = await c.req.parseBody();
+    const base = z.coerce.number().int().positive().parse(b.revision);
+    const field = String(b.field ?? ''),
+      rule = String(b.rule ?? '');
+    if (rule !== 'all' && !isEditableField(field))
+      throw new DomainError(422, '修正する項目を選んでください。');
+    const data = workSchema.parse(
+      rule === 'all'
+        ? applyAllFixes(work.data)
+        : applyFix(work.data, field as Parameters<typeof applyFix>[1], rule),
+    );
+    store.updateWork(user.id, id, base, data);
+    return c.redirect(`/works/${id}/console?fixed=1`, 303);
   });
   app.get('/works/:id', (c) => {
     const { user } = requireUser(c, true);
@@ -245,7 +336,10 @@ export function createApp(store: Store, options: Options) {
       tags: list(b.tags),
     });
     store.updateWork(user.id, id, z.coerce.number().int().positive().parse(b.revision), data);
-    return c.redirect(`/works/${id}?saved=1`, 303);
+    return c.redirect(
+      b.return === 'console' ? `/works/${id}/console?saved=1` : `/works/${id}?saved=1`,
+      303,
+    );
   });
   app.post('/works/:id/image', async (c) => {
     const { user } = requireUser(c, true),
@@ -422,6 +516,88 @@ export function createApp(store: Store, options: Options) {
   app.post('/social/notices/read', (c) => {
     social.read(requireUser(c, true).user.id);
     return c.redirect('/connections', 303);
+  });
+  const backTo = (value: unknown) =>
+    /^\/(home|timeline\/[0-9a-f-]{36})(\?[A-Za-z0-9=&%_.-]*)?$/.test(String(value))
+      ? String(value)
+      : '/home';
+  app.post('/timeline/posts', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody();
+    const blank = (v: unknown) => String(v ?? '').trim() || undefined;
+    if (b.kind === 'recruit')
+      timeline.recruit(user.id, {
+        title: b.title,
+        body: b.body,
+        roles: parseRoles(b.roles),
+        url: blank(b.url),
+        deadline: blank(b.deadline),
+      });
+    else timeline.progress(user.id, { body: b.body, work_id: blank(b.work_id) });
+    return c.redirect('/home', 303);
+  });
+  app.get('/timeline/:id', (c) => {
+    const { user } = requireUser(c, true);
+    return c.html(
+      <TimelinePostPage
+        user={user}
+        timeline={timeline}
+        id={c.req.param('id')}
+        works={store.works(user.id)}
+      />,
+    );
+  });
+  app.post('/timeline/:id/replies', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody(),
+      id = c.req.param('id');
+    timeline.reply(user.id, id, b.body);
+    return c.redirect(`/timeline/${id}#replies`, 303);
+  });
+  app.post('/timeline/:id/like', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody();
+    timeline.like(user.id, c.req.param('id'));
+    return c.redirect(backTo(b.back), 303);
+  });
+  app.post('/timeline/:id/delete', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody(),
+      parent = timeline.remove(user.id, c.req.param('id'));
+    return c.redirect(parent ? `/timeline/${parent}#replies` : backTo(b.back), 303);
+  });
+  app.post('/timeline/:id/report', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody();
+    timeline.report(user.id, c.req.param('id'), String(b.reason ?? ''));
+    return c.redirect(backTo(b.back), 303);
+  });
+  app.post('/timeline/:id/joins', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody(),
+      id = c.req.param('id');
+    timeline.join(user.id, id, {
+      role: b.role,
+      message: b.message,
+      work_id: String(b.work_id ?? '').trim() || undefined,
+    });
+    return c.redirect(`/timeline/${id}#joins`, 303);
+  });
+  app.post('/timeline/joins/:id/state', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody();
+    const post = timeline.decide(
+      user.id,
+      c.req.param('id'),
+      z.enum(['accepted', 'declined', 'cancelled']).parse(b.state),
+    );
+    return c.redirect(`/timeline/${post}#joins`, 303);
+  });
+  app.post('/timeline/joins/:id/contact', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody();
+    const post = timeline.contact(user.id, c.req.param('id'), String(b.contact ?? ''));
+    return c.redirect(`/timeline/${post}#joins`, 303);
   });
   app.get('/opportunities', (c) => {
     const { user } = requireUser(c, true);

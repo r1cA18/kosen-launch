@@ -302,21 +302,17 @@ export function WorkCard({
 export function HomePage({
   user,
   works,
-  feed,
-  store,
-  unread = 0,
+  children,
 }: {
   user: User;
   works: Work[];
-  feed: Published[];
-  store: Store;
-  unread?: number;
+  children: Child;
 }) {
   return (
     <Layout title="ホーム" user={user}>
       <PageHeading
         title="制作の続きが、ここに。"
-        description="自分の作品を整えながら、誰かの制作にも出会いましょう。"
+        description="制作の進み具合を見せて、仲間や次の活動につなげましょう。"
         action={
           <a class="btn btn-outline" href="/settings/agents">
             作品を追加する
@@ -340,41 +336,7 @@ export function HomePage({
           {works.length ? '最近の下書きを開く' : 'エージェントを接続する'}
         </a>
       </section>
-      <div class="section-heading">
-        <h2>みんなの制作</h2>
-        <a href="/connections">{unread ? `新しいお知らせ ${unread}件` : '質問と誘いを確認する'}</a>
-      </div>
-      {feed.length ? (
-        <div class="work-grid">
-          {feed.map((w) => (
-            <div class="feed-entry">
-              <WorkCard
-                data={w.data}
-                href={linkTo(w)}
-                meta={`${w.display_name} / ${kindLabels[w.data.kind]}`}
-                image={w.data.asset_ids[0] ? `/assets/${w.data.asset_ids[0]}` : undefined}
-              />
-              <form method="post" action={`/works/${w.work_id}/react`} class="reaction-form">
-                <button
-                  class="btn btn-ghost btn-sm reaction"
-                  aria-pressed={store.reacted(user.id, w.work_id)}
-                >
-                  {store.reacted(user.id, w.work_id) ? '気になるに追加済み' : '気になる'}
-                  <span>{store.reactionCount(w.work_id)}</span>
-                </button>
-                <a class="btn btn-ghost btn-sm" href={`${linkTo(w)}#conversation`}>
-                  質問・一緒に活動
-                </a>
-              </form>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div class="feed-empty">
-          <h3>まだ共有された作品がありません</h3>
-          <p>作品を公開するときに「ホームにも共有」を選ぶと、ここに表示されます。</p>
-        </div>
-      )}
+      {children}
     </Layout>
   );
 }
@@ -385,9 +347,16 @@ export function WorksPage({ user, works }: { user: User; works: Work[] }) {
         title="自分の作品"
         description="小さな試作も、授業での工夫も。あなたの経験として残せます。"
         action={
-          <a class="btn btn-primary" href="/settings/agents">
-            エージェントで追加
-          </a>
+          <div class="actions">
+            {works.length > 0 && (
+              <a class="btn btn-outline" href="/works/text">
+                表記をまとめて直す
+              </a>
+            )}
+            <a class="btn btn-primary" href="/settings/agents">
+              エージェントで追加
+            </a>
+          </div>
         }
       />
       {works.length ? (
@@ -491,9 +460,14 @@ export function WorkEditor({
         title="作品を整える"
         description={`編集版 ${work.revision} / ${work.published_revision ? '公開版 ' + work.published_revision : 'まだ公開されていません'}`}
         action={
-          <a class="btn btn-primary" href={`/works/${work.id}/review`}>
-            公開前に確認する
-          </a>
+          <div class="actions">
+            <a class="btn btn-outline" href={`/works/${work.id}/console`}>
+              見た目のまま編集
+            </a>
+            <a class="btn btn-primary" href={`/works/${work.id}/review`}>
+              公開前に確認する
+            </a>
+          </div>
         }
       />
       {notice && (

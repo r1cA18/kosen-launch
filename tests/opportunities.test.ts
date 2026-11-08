@@ -76,20 +76,22 @@ test('Claudeの入力に根拠と学校情報を送らず既存作品禁止を�
         const body = JSON.parse(String(init?.body));
         expect(String(init?.body)).not.toContain('PRIVATE_');
         expect(body.messages[0].content).toContain('forbidden');
-        expect(body.tools[0].name).toBe('prepare_activity');
+        expect(body.tool_choice).toBeUndefined();
+        expect(body.output_config.format.type).toBe('json_schema');
+        expect(JSON.stringify(body.output_config.format.schema)).not.toContain('maxLength');
         return Response.json({
+          stop_reason: 'end_turn',
           content: [
             {
-              type: 'tool_use',
-              name: 'prepare_activity',
-              input: {
+              type: 'text',
+              text: JSON.stringify({
                 reason: '回路の経験を使えます。',
                 work_ids: [work.id],
                 role: '役割を確認してから相談します。',
                 project_idea: '新しい題材を制作します。',
                 checks: ['参加資格と締切を公式情報で確認します。'],
                 steps: ['新規の制作案をまとめます。'],
-              },
+              }),
             },
           ],
           usage: { input_tokens: 120, output_tokens: 70 },
@@ -119,18 +121,18 @@ test('Claudeの失敗と未知の作品IDを記録して再試行可能。キー
       key: 'SECRET_TEST_KEY',
       fetch: async () =>
         Response.json({
+          stop_reason: 'end_turn',
           content: [
             {
-              type: 'tool_use',
-              name: 'prepare_activity',
-              input: {
+              type: 'text',
+              text: JSON.stringify({
                 reason: '理由',
                 work_ids: ['unknown'],
                 role: '役割',
                 project_idea: '案',
                 checks: ['条件'],
                 steps: ['作業'],
-              },
+              }),
             },
           ],
         }),

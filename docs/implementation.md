@@ -63,3 +63,16 @@ Claude APIの接続処理と失敗時の挙動とキャッシュと利用上限�
 - [Hono JSX](https://hono.dev/docs/guides/jsx)
 - [Bun SQLite](https://bun.sh/docs/runtime/sqlite)
 - [MCP TypeScript SDK](https://ts.sdk.modelcontextprotocol.io/v2/)
+
+## 編集コンソール 2026年11月8日
+
+本人の指定によりr1ca18.devの公開ページと同じ見た目のまま表記を直せる画面を追加した。
+
+- `/works/:id/console`: 公開ページの文字組みで本文をクリックして直接編集する。保存は既存の`/works/:id/save`と`base_revision`の競合検出を使い公開版は変えない
+- 右側の表記チェック: 全角英数字・半角カナ・技術名の大文字小文字・連続空白・日本語と英数字の間の空白・句読点を検出し修正案を示す。です・ます調でない文末は指摘のみ
+- 修正の適用は保存済みの版に対して行う。未保存の編集がある間は適用ボタンを無効にする
+- `/works/text`: 全作品の下書きを対象に文字列を一括置換する。適用前に作品ごとの差分を表示し、選んだ作品だけ更新する。読み込み後に更新された作品は変更せず件数を返す
+- 判定と置換は`src/console.ts`、画面は`src/console-ui.tsx`、クライアント処理は`public/console.js`
+- `sources`と`assessment`は置換の対象にしない
+
+テストは`tests/console.test.ts`。ブラウザーでは一時DBと架空データで編集・保存・一括修正・一括置換と390px幅の表示を確認した。
