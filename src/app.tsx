@@ -4,7 +4,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Store, DomainError, type Identity } from './store';
 import { ProfilePage } from './profile-ui';
@@ -60,6 +60,8 @@ type Options = {
   uiEditor?: UiEditor;
   /** Site previews for events. Without it previews are neither fetched nor shown. */
   previews?: Previews;
+  /** When set, new accounts need this invite code (public demo deployments). */
+  registrationCode?: string;
 };
 export function createApp(store: Store, options: Options) {
   const app = new Hono<Env>();
@@ -81,6 +83,8 @@ export function createApp(store: Store, options: Options) {
     c.header('Cache-Control', 'no-store');
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Referrer-Policy', 'same-origin');
+    if (origin.startsWith('https:'))
+      c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     c.header(
       'Content-Security-Policy',
       "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'",
@@ -136,6 +140,14 @@ export function createApp(store: Store, options: Options) {
       return c.json({ results });
     });
   }
+  const checkInvite = (code: unknown) => {
+    const expected = options.registrationCode;
+    if (!expected) return;
+    const given = new TextEncoder().encode(String(code ?? ''));
+    const want = new TextEncoder().encode(expected);
+    if (given.length !== want.length || !timingSafeEqual(given, want))
+      throw new DomainError(403, '招待コードを確認してください。');
+  };
   const requireUser = (c: Context<Env>, webOnly = false): Identity => {
     const identity = c.get('identity') as Identity | null;
     if (!identity) throw new DomainError(401, 'ログインしてください。');
@@ -198,6 +210,7 @@ export function createApp(store: Store, options: Options) {
       return c.html(
         <AuthPage
           register={c.req.path === '/register'}
+          invite={!!options.registrationCode}
           error={message}
           next={nextPath(c.req.query('next'))}
         />,
@@ -233,14 +246,24 @@ export function createApp(store: Store, options: Options) {
     return c.body(await file.arrayBuffer());
   });
   app.get('/', (c) => (c.get('identity') ? c.redirect('/home') : c.html(<LandingPage />)));
-  app.get('/register', (c) => c.html(<AuthPage register next={nextPath(c.req.query('next'))} />));
+  app.get('/register', (c) =>
+    c.html(
+      <AuthPage
+        register
+        invite={!!options.registrationCode}
+        next={nextPath(c.req.query('next'))}
+      />,
+    ),
+  );
   app.get('/login', (c) => {
     const next = nextPath(c.req.query('next'));
     if (next && c.get('identity')?.mode === 'session') return c.redirect(next, 302);
     return c.html(<AuthPage next={next} />);
   });
   app.post('/register', async (c) => {
-    const input = registrationSchema.parse(await c.req.parseBody());
+    const { invite_code, ...body } = await c.req.parseBody();
+    checkInvite(invite_code);
+    const input = registrationSchema.parse(body);
     throttle(input.email);
     const user = await store.register(input);
     authenticate(c, user.id);
@@ -960,7 +983,9 @@ export function createApp(store: Store, options: Options) {
   });
 
   app.post('/v1/register', async (c) => {
-    const input = registrationSchema.parse(await c.req.json());
+    const { invite_code, ...body } = (await c.req.json()) as Record<string, unknown>;
+    checkInvite(invite_code);
+    const input = registrationSchema.parse(body);
     throttle(input.email);
     const user = await store.register(input);
     authenticate(c, user.id);

@@ -24,6 +24,7 @@ const app = createApp(store, {
   staticDirectory: resolve('public'),
   skillPath: resolve('skills/kosen-portfolio/SKILL.md'),
   claude,
+  registrationCode: process.env.REGISTRATION_CODE || undefined,
   uiEditor:
     process.env.UI_EDITOR === '1' && ['127.0.0.1', 'localhost'].includes(host)
       ? new UiEditor(resolve('.'), (files) => prettier(resolve('.'), files))

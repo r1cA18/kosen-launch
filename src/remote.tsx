@@ -53,6 +53,7 @@ export function remoteRoutes(
   store: Store,
   options: { origin: string; skillPath: string },
 ) {
+  const registrations: number[] = [];
   const origin = options.origin;
   const resource = `${origin}/mcp`;
   const metadataUrl = `${origin}/.well-known/oauth-protected-resource`;
@@ -100,6 +101,17 @@ export function remoteRoutes(
     return c.json({ error: e.code, error_description: e.message }, e.status as 400);
   };
   app.post('/oauth/register', async (c) => {
+    const now = Date.now();
+    while (registrations.length && registrations[0] < now - 3600_000) registrations.shift();
+    if (registrations.length >= 30)
+      return c.json(
+        {
+          error: 'temporarily_unavailable',
+          error_description: '登録が多すぎます。時間をおいて試してください。',
+        },
+        429,
+      );
+    registrations.push(now);
     try {
       const body = await c.req.json().catch(() => {
         throw new OAuthError('invalid_client_metadata', 'JSONで送信してください。');

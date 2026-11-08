@@ -192,9 +192,11 @@ export function AuthPage({
   register = false,
   error,
   next,
+  invite = false,
 }: {
   register?: boolean;
   error?: string;
+  invite?: boolean;
   /** Same-site path to return to after signing in, such as an OAuth consent request. */
   next?: string;
 }) {
@@ -222,6 +224,12 @@ export function AuthPage({
           )}
           {next && <p class="quiet">ログインすると、接続の確認画面へ戻ります。</p>}
           <form method="post" action={(register ? '/register' : '/login') + keep} class="auth-form">
+            {register && invite && (
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend">招待コード</legend>
+                <input class="input validator w-full" name="invite_code" required maxLength={100} />
+              </fieldset>
+            )}
             {register && (
               <>
                 <fieldset class="fieldset">
