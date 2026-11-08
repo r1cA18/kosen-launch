@@ -105,7 +105,7 @@ export function Conversation({
       {user && user.id !== owner && (
         <section class="card social-card invite-panel">
           <h3>活動に誘う</h3>
-          <p>イベント、役割、最初の一歩を指定して誘えます。内容は相手にだけ届きます。</p>
+          <p>活動名と双方の役割と最初の作業を指定して誘えます。内容は相手にだけ表示されます。</p>
           <form
             method="post"
             action={`/social/works/${work.work_id}/invitations`}
@@ -120,14 +120,14 @@ export function Conversation({
               maxLength={1500}
             />
             <label class="field">
-              <span>この作品を見て一緒にしたいこと</span>
+              <span>誘う理由</span>
               <textarea class="textarea" name="purpose" required rows={3} maxLength={1000} />
             </label>
             <div class="field-pair">
               <Field label="自分が担当したいこと" name="sender_role" required maxLength={200} />
               <Field label="相手に相談したい役割" name="recipient_role" required maxLength={200} />
             </div>
-            <Field label="最初の一歩・予定" name="next_step" required maxLength={500} />
+            <Field label="最初の作業" name="next_step" required maxLength={500} />
             <button class="btn btn-primary">誘う</button>
           </form>
         </section>
@@ -198,7 +198,7 @@ export function ConnectionsPage({
                   <span class="badge badge-outline">{invitationLabels[i.state]}</span>
                 </div>
                 <p class="quiet">
-                  {i.sender_name} → {i.recipient_name} · きっかけは「{i.title}」
+                  {i.sender_name} → {i.recipient_name} · 活動「{i.title}」
                 </p>
                 <a href={i.event_url} target="_blank" rel="noopener noreferrer">
                   イベント・募集の情報を見る
@@ -209,7 +209,7 @@ export function ConnectionsPage({
                   <dd>{i.sender_role}</dd>
                   <dt>{i.recipient_name}に相談したい役割</dt>
                   <dd>{i.recipient_role}</dd>
-                  <dt>最初の一歩</dt>
+                  <dt>最初の作業</dt>
                   <dd>{i.next_step}</dd>
                 </dl>
                 {i.state === 'pending' && (
@@ -540,7 +540,7 @@ export function OpportunityPage({
                         <li>{s}</li>
                       ))}
                     </ul>
-                    <h3>次の一歩</h3>
+                    <h3>次の作業</h3>
                     <ol>
                       {advice.result.steps.map((s) => (
                         <li>{s}</li>

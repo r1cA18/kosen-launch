@@ -21,6 +21,7 @@ import {
   authoringRules,
 } from './schema';
 import {
+  LandingPage,
   AuthPage,
   HomePage,
   WorksPage,
@@ -206,7 +207,7 @@ export function createApp(store: Store, options: Options) {
     c.header('Cache-Control', 'public, max-age=86400');
     return c.body(await file.arrayBuffer());
   });
-  app.get('/', (c) => (c.get('identity') ? c.redirect('/home') : c.redirect('/register')));
+  app.get('/', (c) => (c.get('identity') ? c.redirect('/home') : c.html(<LandingPage />)));
   app.get('/register', (c) => c.html(<AuthPage register />));
   app.get('/login', (c) => c.html(<AuthPage />));
   app.post('/register', async (c) => {

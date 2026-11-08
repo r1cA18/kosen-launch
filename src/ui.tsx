@@ -35,6 +35,7 @@ export function Layout({
   user,
   active = 'home',
   portfolio = false,
+  landing = false,
   publicViewer,
 }: {
   title: string;
@@ -42,6 +43,7 @@ export function Layout({
   user?: User;
   active?: string;
   portfolio?: boolean;
+  landing?: boolean;
   publicViewer?: User;
 }) {
   return (
@@ -99,7 +101,7 @@ export function Layout({
             </a>
           ) : null}
         </header>
-        <main id="main" class={user ? 'ui-page' : 'ui-public'}>
+        <main id="main" class={user ? 'ui-page' : landing ? 'ui-landing' : 'ui-public'}>
           {children}
         </main>
         <footer class="site-footer">© 2026 Kosen Launch</footer>
@@ -107,87 +109,156 @@ export function Layout({
     </html>
   );
 }
+export function LandingPage() {
+  return (
+    <Layout title="Kosen Launch" landing>
+      <section class="hero landing-hero">
+        <div class="hero-content text-center">
+          <div class="landing-copy">
+            <span class="landing-logo">
+              <LogoMark />
+            </span>
+            <h1>Kosen Launch</h1>
+            <p>
+              高専の授業制作や個人開発を、担当範囲と根拠を付けた作品ページにまとめるWebサービスです。
+            </p>
+            <div class="landing-actions">
+              <a class="btn btn-primary btn-lg" href="/register">
+                アカウント作成
+              </a>
+              <a class="btn btn-lg glass-action" href="/login">
+                ログイン
+              </a>
+            </div>
+          </div>
+        </div>
+        <a class="scroll-cue" href="#how" aria-label="使い方へ移動">
+          <svg viewBox="0 0 16 32" aria-hidden="true">
+            <path d="M8 2v26M3 23l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.2" />
+          </svg>
+        </a>
+      </section>
+      <section class="landing-steps" id="how">
+        <h2>How it works</h2>
+        <ol>
+          {[
+            [
+              'Draft',
+              'Claude CodeなどのコーディングエージェントがSkillとMCPで制作フォルダを読み、作品の下書きを送ります。',
+            ],
+            ['Review', '担当範囲と根拠をWeb上で確認・編集してから公開します。'],
+            ['Connect', '制作ログの投稿、仲間募集への参加、イベントの準備案作成ができます。'],
+          ].map(([title, body], i) => (
+            <li class="card glass-card">
+              <span class="step-index">0{i + 1}</span>
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+    </Layout>
+  );
+}
 export function AuthPage({ register = false, error }: { register?: boolean; error?: string }) {
   return (
     <Layout title={register ? 'アカウント作成' : 'ログイン'}>
-      <div class="auth-layout">
-        <section class="auth-story">
-          <h1>Kosen Launch</h1>
-          <p class="lead">
-            高専での制作物を作品ページにまとめるサービスです。コーディングエージェントが制作フォルダから下書きを作成し、内容を確認してから公開します。
-          </p>
-          <ol class="journey">
-            <li>
-              <span>1</span>
-              <p>エージェントが制作フォルダから下書きを作成</p>
-            </li>
-            <li>
-              <span>2</span>
-              <p>担当範囲と本文を確認して公開</p>
-            </li>
-            <li>
-              <span>3</span>
-              <p>制作ログの投稿と仲間募集への参加</p>
-            </li>
-          </ol>
-          <p class="quiet">企画・デザイン・発表など、コード以外の担当も記録できます。</p>
-        </section>
-        <section class="card auth-panel">
-          <h2>{register ? 'Sign up' : 'Log in'}</h2>
+      <section class="auth-shell">
+        <div class="card glass-card auth-card">
+          <a class="auth-logo" href="/" aria-label="トップへ戻る">
+            <LogoMark />
+          </a>
+          <h1>{register ? 'Sign up' : 'Log in'}</h1>
+          <div role="tablist" class="tabs tabs-box auth-tabs">
+            <a role="tab" href="/login" class={`tab ${register ? '' : 'tab-active'}`}>
+              ログイン
+            </a>
+            <a role="tab" href="/register" class={`tab ${register ? 'tab-active' : ''}`}>
+              アカウント作成
+            </a>
+          </div>
           {error && (
             <p class="alert alert-error" role="alert">
               {error}
             </p>
           )}
-          <form method="post" action={register ? '/register' : '/login'}>
+          <form method="post" action={register ? '/register' : '/login'} class="auth-form">
             {register && (
               <>
-                <Field label="表示名" name="display_name" required maxLength={60} />
-                <Field
-                  label="公開ID"
-                  name="handle"
-                  required
-                  pattern="[a-z][a-z0-9-]{2,29}"
-                  maxLength={30}
-                  help="小文字の英字で始まる3〜30文字。英数字とハイフンが使えます。"
-                />
+                <fieldset class="fieldset">
+                  <legend class="fieldset-legend">表示名</legend>
+                  <input
+                    class="input validator w-full"
+                    name="display_name"
+                    required
+                    maxLength={60}
+                  />
+                </fieldset>
+                <fieldset class="fieldset">
+                  <legend class="fieldset-legend">公開ID</legend>
+                  <label class="input validator w-full">
+                    <span class="label">/u/</span>
+                    <input
+                      name="handle"
+                      required
+                      pattern="[a-z][a-z0-9-]{2,29}"
+                      maxLength={30}
+                      autoComplete="username"
+                    />
+                  </label>
+                  <p class="label">小文字の英字で始まる3〜30文字。英数字とハイフンが使えます。</p>
+                </fieldset>
               </>
             )}
-            <Field label="メールアドレス" name="email" type="email" required autoComplete="email" />
-            <Field
-              label="パスワード"
-              name="password"
-              type="password"
-              required
-              minLength={10}
-              maxLength={128}
-              autoComplete={register ? 'new-password' : 'current-password'}
-              help={register ? '10文字以上で入力してください。' : undefined}
-            />
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">メールアドレス</legend>
+              <input
+                class="input validator w-full"
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+              />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">パスワード</legend>
+              <input
+                class="input validator w-full"
+                name="password"
+                type="password"
+                required
+                minLength={10}
+                maxLength={128}
+                autoComplete={register ? 'new-password' : 'current-password'}
+              />
+              {register && <p class="label">10文字以上で入力してください。</p>}
+            </fieldset>
             {register && (
               <details class="school-details">
                 <summary>学校の情報（任意）</summary>
-                <Field label="学校" name="school" maxLength={120} />
+                <fieldset class="fieldset">
+                  <legend class="fieldset-legend">学校</legend>
+                  <input class="input w-full" name="school" maxLength={120} />
+                </fieldset>
                 <div class="field-pair">
-                  <Field label="学科" name="department" maxLength={100} />
-                  <Field label="学年" name="grade" maxLength={30} />
+                  <fieldset class="fieldset">
+                    <legend class="fieldset-legend">学科</legend>
+                    <input class="input w-full" name="department" maxLength={100} />
+                  </fieldset>
+                  <fieldset class="fieldset">
+                    <legend class="fieldset-legend">学年</legend>
+                    <input class="input w-full" name="grade" maxLength={30} />
+                  </fieldset>
                 </div>
-                <p class="quiet">学校の情報は公開ページに表示されません。</p>
+                <p class="label">学校の情報は公開ページに表示されません。</p>
               </details>
             )}
-            <button class="btn btn-primary full" type="submit">
-              {register ? '登録' : 'ログイン'}
+            <button class="btn btn-primary btn-block" type="submit">
+              {register ? 'アカウント作成' : 'ログイン'}
             </button>
           </form>
-          <p class="auth-switch">
-            {register ? (
-              <a href="/login">登録済みの方はログイン</a>
-            ) : (
-              <a href="/register">アカウントを作成</a>
-            )}
-          </p>
-        </section>
-      </div>
+        </div>
+      </section>
     </Layout>
   );
 }
