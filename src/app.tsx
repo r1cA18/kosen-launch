@@ -26,6 +26,7 @@ import {
   HomePage,
   WorksPage,
   WorkEditor,
+  PreviewPage,
   ReviewPage,
   ConnectPage,
   PublicPortfolio,
@@ -35,6 +36,8 @@ import {
 import { ConsolePage, BulkTextPage } from './console-ui';
 import { applyAllFixes, applyFix, isEditableField, replaceAll } from './console';
 import { applySchema, type UiEditor } from './ui-editor';
+import { EditorPage } from './editor-ui';
+import { layoutOf, withLayout } from './layout';
 
 type Env = { Variables: { identity: Identity | null } };
 type Options = {
@@ -192,6 +195,7 @@ export function createApp(store: Store, options: Options) {
     ['fonts.css', 'text/css'],
     ['app.js', 'text/javascript'],
     ['client.js', 'text/javascript'],
+    ['editor.js', 'text/javascript'],
     ['LICENSE-meniscus.txt', 'text/plain; charset=utf-8'],
     ['console.js', 'text/javascript'],
     ['favicon.svg', 'image/svg+xml'],
@@ -255,7 +259,18 @@ export function createApp(store: Store, options: Options) {
   });
   app.get('/works', (c) => {
     const { user } = requireUser(c, true);
-    return c.html(<WorksPage user={user} works={store.works(user.id)} />);
+    const works = store.works(user.id);
+    const filter = z
+      .enum(['all', 'draft', 'agent', 'published'])
+      .catch('all')
+      .parse(c.req.query('filter'));
+    const view = z.enum(['list', 'grid']).catch('list').parse(c.req.query('view'));
+    const proposals = Object.fromEntries(
+      works.map((w) => [w.id, store.proposals(user.id, w.id).length]),
+    );
+    return c.html(
+      <WorksPage user={user} works={works} proposals={proposals} filter={filter} view={view} />,
+    );
   });
   app.get('/works/text', (c) => {
     const { user } = requireUser(c, true);
@@ -339,6 +354,51 @@ export function createApp(store: Store, options: Options) {
     const { user } = requireUser(c, true);
     const work = store.work(user.id, c.req.param('id'));
     return c.html(
+      <EditorPage
+        user={user}
+        work={work}
+        store={store}
+        proposals={store.proposals(user.id, work.id)}
+      />,
+    );
+  });
+  app.get('/works/:id/preview', (c) => {
+    const { user } = requireUser(c, true);
+    return c.html(
+      <PreviewPage user={user} work={store.work(user.id, c.req.param('id'))} store={store} />,
+    );
+  });
+  app.post('/works/:id/document', async (c) => {
+    const { user } = requireUser(c, true),
+      id = c.req.param('id'),
+      body = z
+        .object({ revision: z.number().int().positive(), data: z.unknown() })
+        .parse(await c.req.json());
+    const current = store.work(user.id, id);
+    const input = workSchema.parse({
+      ...(body.data as object),
+      sources: current.data.sources,
+      assessment: current.data.assessment,
+    });
+    const work = store.updateWork(
+      user.id,
+      id,
+      body.revision,
+      withLayout(input, input.layout ?? layoutOf(input)),
+    );
+    return c.json({ revision: work.revision });
+  });
+  app.post('/works/:id/assets', async (c) => {
+    const { user } = requireUser(c, true),
+      b = await c.req.parseBody();
+    store.work(user.id, c.req.param('id'));
+    const id = await upload(user.id, b.image as File, String(b.alt ?? '') || '作品の画像');
+    return c.json({ id, url: `/assets/${id}`, alt: store.asset(id, user.id).alt }, 201);
+  });
+  app.get('/works/:id/form', (c) => {
+    const { user } = requireUser(c, true);
+    const work = store.work(user.id, c.req.param('id'));
+    return c.html(
       <WorkEditor
         user={user}
         work={work}
@@ -379,7 +439,7 @@ export function createApp(store: Store, options: Options) {
     });
     store.updateWork(user.id, id, z.coerce.number().int().positive().parse(b.revision), data);
     return c.redirect(
-      b.return === 'console' ? `/works/${id}/console?saved=1` : `/works/${id}?saved=1`,
+      b.return === 'console' ? `/works/${id}/console?saved=1` : `/works/${id}/form?saved=1`,
       303,
     );
   });
@@ -391,7 +451,8 @@ export function createApp(store: Store, options: Options) {
     const base = z.coerce.number().int().positive().parse(b.revision);
     if (base !== work.revision)
       throw new DomainError(409, '作品が更新されています。再読み込みしてください。');
-    if (work.data.asset_ids.length >= 8) throw new DomainError(422, '画像は8枚まで追加できます。');
+    if (work.data.asset_ids.length >= 12)
+      throw new DomainError(422, '画像は12枚まで追加できます。');
     const asset = await upload(user.id, b.image as File, String(b.alt ?? ''));
     store.updateWork(user.id, id, base, {
       ...work.data,

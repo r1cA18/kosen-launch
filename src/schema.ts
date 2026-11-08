@@ -2,6 +2,29 @@ import { z } from 'zod';
 
 const text = (max: number) => z.string().trim().max(max);
 const labels = z.array(text(50).min(1)).max(16);
+export const fieldBlocks = [
+  'my_contribution',
+  'team_result',
+  'ingenuity',
+  'outcome',
+  'next_interest',
+] as const;
+const blockId = z.string().regex(/^[a-z0-9_-]{1,40}$/);
+export const blockSchema = z.discriminatedUnion('type', [
+  z.object({ id: blockId, type: z.literal('field'), field: z.enum(fieldBlocks) }).strict(),
+  z.object({ id: blockId, type: z.literal('heading'), text: text(120) }).strict(),
+  z.object({ id: blockId, type: z.literal('text'), text: text(3000) }).strict(),
+  z
+    .object({
+      id: blockId,
+      type: z.literal('images'),
+      asset_ids: z.array(z.string().uuid()).max(12),
+      columns: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+      size: z.enum(['small', 'medium', 'large']),
+    })
+    .strict(),
+]);
+export type Block = z.infer<typeof blockSchema>;
 export const workSchema = z
   .object({
     title: text(120).min(1),
@@ -16,8 +39,9 @@ export const workSchema = z
     outcome: text(2000),
     next_interest: text(1000),
     tags: labels,
-    asset_ids: z.array(z.string().uuid()).max(8),
+    asset_ids: z.array(z.string().uuid()).max(12),
     sources: z.array(z.object({ label: text(200).min(1), note: text(1000) }).strict()).max(20),
+    layout: z.array(blockSchema).max(40).optional(),
     assessment: z
       .object({
         basis: z.enum(['documented', 'inferred', 'unknown']),

@@ -1,6 +1,7 @@
 import type { Child } from 'hono/jsx';
 import type { User, Work, Published, Proposal, Store } from './store';
-import { kindLabels, statusLabels, type WorkData } from './schema';
+import { kindLabels, statusLabels, type Block, type WorkData } from './schema';
+import { fieldTitles, layoutOf } from './layout';
 
 type DisplayWork = Omit<WorkData, 'sources'>;
 const linkTo = (work: Published) => `/u/${work.handle}/works/${work.work_id}`;
@@ -423,40 +424,174 @@ export function HomePage({
     </Layout>
   );
 }
-export function WorksPage({ user, works }: { user: User; works: Work[] }) {
+const workFilters = [
+  ['all', 'すべて'],
+  ['draft', '下書き'],
+  ['agent', 'エージェントの下書き'],
+  ['published', '公開中'],
+] as const;
+export type WorkFilter = (typeof workFilters)[number][0];
+const isAgentDraft = (w: Work) => !w.published_revision && w.revision === 1;
+export function WorksPage({
+  user,
+  works,
+  proposals,
+  filter = 'all',
+  view = 'list',
+}: {
+  user: User;
+  works: Work[];
+  proposals: Record<string, number>;
+  filter?: WorkFilter;
+  view?: 'list' | 'grid';
+}) {
+  const shown = works.filter((w) =>
+    filter === 'draft'
+      ? !w.published_revision
+      : filter === 'agent'
+        ? isAgentDraft(w) || proposals[w.id] > 0
+        : filter === 'published'
+          ? w.published_revision
+          : true,
+  );
+  const count = (f: WorkFilter) =>
+    f === 'all'
+      ? works.length
+      : f === 'draft'
+        ? works.filter((w) => !w.published_revision).length
+        : f === 'agent'
+          ? works.filter((w) => isAgentDraft(w) || proposals[w.id] > 0).length
+          : works.filter((w) => w.published_revision).length;
+  const query = (next: Record<string, string>) =>
+    '?' + new URLSearchParams({ filter, view, ...next }).toString();
   return (
     <Layout title="Works" user={user} active="works">
       <PageHeading
         title="Works"
         action={
           <div class="actions">
-            {works.length > 0 && (
-              <a class="btn btn-outline" href="/works/text">
-                表記の一括置換
-              </a>
-            )}
-            <a class="btn btn-primary" href="/settings/agents">
+            <a class="btn btn-outline" href={`/u/${user.handle}`}>
+              公開ページ
+            </a>
+            <a class="btn btn-primary" href="/settings?tab=agent">
               エージェントで追加
             </a>
           </div>
         }
       />
       {works.length ? (
-        <div class="work-grid">
-          {works.map((w) => (
-            <WorkCard
-              data={w.data}
-              href={`/works/${w.id}`}
-              meta={w.published_revision ? `公開中 / 編集版 ${w.revision}` : '下書き'}
-              image={w.data.asset_ids[0] ? `/assets/${w.data.asset_ids[0]}` : undefined}
-            />
-          ))}
-        </div>
+        <>
+          <div class="works-toolbar">
+            <nav class="segmented glass" aria-label="作品の絞り込み">
+              {workFilters.map(([key, label]) => (
+                <a href={query({ filter: key })} aria-current={filter === key ? 'page' : undefined}>
+                  {label}
+                  <span>{count(key)}</span>
+                </a>
+              ))}
+            </nav>
+            <nav class="segmented glass" aria-label="表示形式">
+              <a href={query({ view: 'list' })} aria-current={view === 'list' ? 'page' : undefined}>
+                リスト
+              </a>
+              <a href={query({ view: 'grid' })} aria-current={view === 'grid' ? 'page' : undefined}>
+                グリッド
+              </a>
+            </nav>
+          </div>
+          {!shown.length ? (
+            <p class="quiet">該当する作品はありません。</p>
+          ) : view === 'grid' ? (
+            <div class="work-grid">
+              {shown.map((w) => (
+                <WorkCard
+                  data={w.data}
+                  href={`/works/${w.id}`}
+                  meta={
+                    w.published_revision
+                      ? '公開中'
+                      : isAgentDraft(w)
+                        ? 'エージェントの下書き'
+                        : '下書き'
+                  }
+                  image={w.data.asset_ids[0] ? `/assets/${w.data.asset_ids[0]}` : undefined}
+                />
+              ))}
+            </div>
+          ) : (
+            <ul class="work-list">
+              {shown.map((w) => (
+                <li class="card">
+                  <a class="work-row" href={`/works/${w.id}`}>
+                    <span class={`work-thumb ${w.data.asset_ids[0] ? '' : 'empty'}`}>
+                      {w.data.asset_ids[0] ? (
+                        <img src={`/assets/${w.data.asset_ids[0]}`} alt="" loading="lazy" />
+                      ) : (
+                        kindLabels[w.data.kind]
+                      )}
+                    </span>
+                    <span class="work-row-main">
+                      <strong>{w.data.title}</strong>
+                      <span class="quiet">{w.data.summary}</span>
+                    </span>
+                    <span class="work-row-meta">
+                      <span
+                        class={`status-pill ${w.published_revision ? 'is-live' : isAgentDraft(w) ? 'is-agent' : ''}`}
+                      >
+                        {w.published_revision
+                          ? '公開中'
+                          : isAgentDraft(w)
+                            ? 'エージェントの下書き'
+                            : '下書き'}
+                      </span>
+                      {proposals[w.id] > 0 && (
+                        <span class="status-pill is-proposal">更新案 {proposals[w.id]}</span>
+                      )}
+                      {w.data.assessment?.uncertainties.length ? (
+                        <span class="status-pill">
+                          確認事項 {w.data.assessment.uncertainties.length}
+                        </span>
+                      ) : null}
+                      <time class="quiet">{w.updated_at.slice(0, 10)}</time>
+                    </span>
+                  </a>
+                  <a class="btn btn-ghost btn-sm" href={`/works/${w.id}/preview`}>
+                    プレビュー
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       ) : (
-        <Empty title="作品はまだありません" href="/settings/agents" label="エージェントを接続">
+        <Empty title="作品はまだありません" href="/settings?tab=agent" label="エージェントを接続">
           エージェントを接続すると、制作フォルダから作品の下書きを作成できます。
         </Empty>
       )}
+    </Layout>
+  );
+}
+export function PreviewPage({ user, work, store }: { user: User; work: Work; store: Store }) {
+  return (
+    <Layout title={`${work.data.title}のプレビュー`} portfolio publicViewer={user}>
+      <div class="preview-banner glass">
+        <span>
+          プレビュー（{work.published_revision ? '公開中の版とは異なる場合があります' : '未公開'}）
+        </span>
+        <a class="btn btn-sm btn-outline" href={`/works/${work.id}`}>
+          編集に戻る
+        </a>
+        <a class="btn btn-sm btn-primary" href={`/works/${work.id}/review`}>
+          公開へ進む
+        </a>
+      </div>
+      <div class="public-work">
+        <a class="back-link" href={`/u/${user.handle}`}>
+          {user.display_name}の作品一覧
+        </a>
+        <WorkDetail data={work.data} store={store} userId={user.id} />
+        <footer class="work-footer">{user.display_name} / Kosen Launch</footer>
+      </div>
     </Layout>
   );
 }
@@ -478,38 +613,18 @@ export function WorkDetail({
       </div>
       <h1>{data.title}</h1>
       <p class="work-summary">{data.summary}</p>
-      {data.asset_ids.length > 0 && (
-        <div class="gallery">
-          {data.asset_ids.map((id) => {
-            const image = store.asset(id, userId);
-            return <img src={`/assets/${id}`} alt={image.alt} loading="lazy" />;
-          })}
-        </div>
-      )}
-      <section>
-        <h2>自分が担当したこと</h2>
-        <div class="tags">
+      {data.my_roles.length > 0 && (
+        <div class="tags work-roles">
           {data.my_roles.map((r) => (
             <span class="badge badge-ghost">{r}</span>
           ))}
         </div>
-        <p>{data.my_contribution}</p>
-      </section>
-      {[
-        ['チームで作ったもの', data.team_result],
-        ['工夫したこと', data.ingenuity],
-        ['結果と学んだこと', data.outcome],
-        ['次にしてみたいこと', data.next_interest],
-      ]
-        .filter(([, v]) => v)
-        .map(([label, value]) => (
-          <section>
-            <h2>{label}</h2>
-            <p>{value}</p>
-          </section>
-        ))}
+      )}
+      {layoutOf(data).map((block) => (
+        <WorkBlock block={block} data={data} store={store} userId={userId} />
+      ))}
       {data.tags.length > 0 && (
-        <div class="tags">
+        <div class="tags work-tags">
           {data.tags.map((t) => (
             <span class="badge badge-ghost">{t}</span>
           ))}
@@ -518,6 +633,39 @@ export function WorkDetail({
     </article>
   );
 }
+function WorkBlock({
+  block,
+  data,
+  store,
+  userId,
+}: {
+  block: Block;
+  data: DisplayWork;
+  store: Store;
+  userId?: string;
+}) {
+  if (block.type === 'field') {
+    const value = data[block.field];
+    return value ? (
+      <section class="work-block">
+        <h2>{fieldTitles[block.field]}</h2>
+        <p>{value}</p>
+      </section>
+    ) : null;
+  }
+  if (block.type === 'heading')
+    return block.text ? <h2 class="work-block work-heading">{block.text}</h2> : null;
+  if (block.type === 'text')
+    return block.text ? <p class="work-block work-text">{block.text}</p> : null;
+  return block.asset_ids.length ? (
+    <div class={`work-block gallery cols-${block.columns} size-${block.size}`}>
+      {block.asset_ids.map((id) => (
+        <img src={`/assets/${id}`} alt={store.asset(id, userId).alt} loading="lazy" />
+      ))}
+    </div>
+  ) : null;
+}
+/** Plain form editor kept as a fallback when scripts are unavailable. */
 export function WorkEditor({
   user,
   work,
@@ -700,9 +848,14 @@ export function ReviewPage({ user, work, store }: { user: User; work: Work; stor
         title="Review"
         description="本人の担当と結果に誤りがないか確認してください。"
         action={
-          <a class="btn btn-outline" href={`/works/${work.id}`}>
-            編集に戻る
-          </a>
+          <div class="actions">
+            <a class="btn btn-outline" href={`/works/${work.id}/preview`}>
+              全画面プレビュー
+            </a>
+            <a class="btn btn-outline" href={`/works/${work.id}`}>
+              編集に戻る
+            </a>
+          </div>
         }
       />
       <div class="review-layout">
@@ -714,7 +867,7 @@ export function ReviewPage({ user, work, store }: { user: User; work: Work; stor
           <p>編集版 {work.revision}</p>
           <p>根拠のメモや学校の登録情報は公開されません。</p>
           <Assessment data={work.data} />
-          <form method="post" action={`/works/${work.id}/publish`}>
+          <form method="post" action={`/works/${work.id}/publish`} data-confirm-gate>
             <input type="hidden" name="revision" value={work.revision} />
             <label class="check-field">
               <input
@@ -723,6 +876,7 @@ export function ReviewPage({ user, work, store }: { user: User; work: Work; stor
                 name="reviewed"
                 value="yes"
                 required
+                data-confirm
               />
               担当と内容を確認しました
             </label>
@@ -735,7 +889,12 @@ export function ReviewPage({ user, work, store }: { user: User; work: Work; stor
               />
               ホームにも共有する
             </label>
-            <button class="btn btn-primary full">この内容を公開</button>
+            <button class="btn btn-primary full" data-confirm-submit>
+              この内容を公開
+            </button>
+            <p class="quiet confirm-hint" data-confirm-hint>
+              確認にチェックを入れると公開できます。
+            </p>
           </form>
           {work.published_revision && (
             <>
